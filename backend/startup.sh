@@ -97,4 +97,4 @@ ls -lh "$UHD_IMAGES_DIR"/*.bin 2>/dev/null || echo "No UHD images found yet in $
 # Start the application
 echo "Starting Ground Station application..."
 cd /app/backend
-exec python app.py --log-level=INFO --host=0.0.0.0 --port=7000
+exec /app/venv/bin/python app.py --log-level=INFO --host=0.0.0.0 --port=7000

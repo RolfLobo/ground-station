@@ -84,6 +84,7 @@ RUN git clone https://github.com/EttusResearch/uhd.git && \
     sudo ldconfig
 
 RUN python3 -m venv /app/venv
+ENV VIRTUAL_ENV=/app/venv
 ENV PATH="/app/venv/bin:$PATH"
 
 # Copy UHD Python bindings to virtual environment
@@ -93,8 +94,13 @@ RUN cp -r /usr/local/lib/python3.12/site-packages/usrp* /app/venv/lib/python3.12
 WORKDIR /app
 
 # Now pip will use the virtual environment
-RUN pip install --upgrade pip setuptools
-RUN pip install --no-cache-dir -r requirements.txt
+RUN /app/venv/bin/python -m pip install --upgrade pip setuptools
+RUN /app/venv/bin/python -m pip install --no-cache-dir -r requirements.txt
+RUN /app/venv/bin/python -m pip install --no-cache-dir --force-reinstall --no-deps "setuptools>=80.9.0,<81"
+RUN /app/venv/bin/python - <<'PY'
+import pkg_resources
+print(pkg_resources.__file__)
+PY
 
 # compile SoapySDR
 WORKDIR /src
