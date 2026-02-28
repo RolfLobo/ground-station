@@ -45,6 +45,7 @@ class SDRConfig:
     antenna: Optional[str] = None
     ppm_error: Optional[Number] = None
     loop_playback: Optional[bool] = None
+    sdr_settings: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -87,5 +88,9 @@ class SDRConfig:
             payload["ppm_error"] = self.ppm_error
         if self.loop_playback is not None:
             payload["loop_playback"] = self.loop_playback
+        if self.sdr_settings is not None:
+            payload["sdr_settings"] = self.sdr_settings
+        else:
+            payload["sdr_settings"] = {}
 
         return payload

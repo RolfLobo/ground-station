@@ -75,6 +75,24 @@ def probe_local_uhd_usrp(sdr_details):
     antennas = {"rx": [], "tx": []}
     frequency_ranges = {}
     clock_info = {}
+    capabilities = {
+        "agc": {"supported_rx": False, "supported_tx": False, "settings": []},
+        "bandwidths": {"rx": [], "tx": []},
+        "bias_t": {"supported": False, "keys": [], "value": None},
+        "clock_rate": None,
+        "clock_rates": [],
+        "clock_source": None,
+        "clock_sources": [],
+        "gain_elements": {"rx": [], "tx": []},
+        "gain_ranges": {"rx": {}, "tx": {}},
+        "native_stream_format": {"rx": None, "tx": None},
+        "sensor_values": {},
+        "sensors": [],
+        "settings": [],
+        "stream_formats": {"rx": [], "tx": []},
+        "time_source": None,
+        "time_sources": [],
+    }
 
     reply["log"].append(f"INFO: Connecting to local UHD/USRP device with details: {sdr_details}")
 
@@ -349,6 +367,39 @@ def probe_local_uhd_usrp(sdr_details):
         except Exception as e:
             reply["log"].append(f"INFO: Could not get gain element names: {e}")
 
+        # Gain elements + ranges (RX/TX)
+        try:
+            rx_gain_names = list(usrp.get_rx_gain_names(channel))
+            capabilities["gain_elements"]["rx"] = rx_gain_names
+            for name in rx_gain_names:
+                try:
+                    gr = usrp.get_rx_gain_range(name, channel)
+                    capabilities["gain_ranges"]["rx"][name] = {
+                        "min": gr.start(),
+                        "max": gr.stop(),
+                        "step": gr.step() or None,
+                    }
+                except Exception as e:
+                    reply["log"].append(f"INFO: Could not get RX gain range for {name}: {e}")
+        except Exception as e:
+            reply["log"].append(f"INFO: Could not get RX gain element names: {e}")
+
+        try:
+            tx_gain_names = list(usrp.get_tx_gain_names(channel))
+            capabilities["gain_elements"]["tx"] = tx_gain_names
+            for name in tx_gain_names:
+                try:
+                    gr = usrp.get_tx_gain_range(name, channel)
+                    capabilities["gain_ranges"]["tx"][name] = {
+                        "min": gr.start(),
+                        "max": gr.stop(),
+                        "step": gr.step() or None,
+                    }
+                except Exception as e:
+                    reply["log"].append(f"INFO: Could not get TX gain range for {name}: {e}")
+        except Exception as e:
+            reply["log"].append(f"INFO: Could not get TX gain element names: {e}")
+
         # Get antenna information
         try:
             # Get RX antennas
@@ -398,6 +449,19 @@ def probe_local_uhd_usrp(sdr_details):
         except Exception as e:
             reply["log"].append(f"WARNING: Could not get frequency range information: {e}")
 
+        # Get bandwidth range information (if supported)
+        try:
+            rx_bw_range = usrp.get_rx_bandwidth_range(channel)
+            capabilities["bandwidths"]["rx"] = [rx_bw_range.start(), rx_bw_range.stop()]
+        except Exception as e:
+            reply["log"].append(f"INFO: RX bandwidth range not available: {e}")
+
+        try:
+            tx_bw_range = usrp.get_tx_bandwidth_range(channel)
+            capabilities["bandwidths"]["tx"] = [tx_bw_range.start(), tx_bw_range.stop()]
+        except Exception as e:
+            reply["log"].append(f"INFO: TX bandwidth range not available: {e}")
+
         # Get clock and time source information
         try:
             clock_info = {
@@ -413,6 +477,7 @@ def probe_local_uhd_usrp(sdr_details):
             try:
                 clock_sources = usrp.get_clock_sources(0)  # mboard 0
                 clock_info["available_clock_sources"] = list(clock_sources)
+                capabilities["clock_sources"] = list(clock_sources)
                 reply["log"].append(
                     f"INFO: Available clock sources: {clock_info['available_clock_sources']}"
                 )
@@ -423,6 +488,7 @@ def probe_local_uhd_usrp(sdr_details):
             try:
                 current_clock_source = usrp.get_clock_source(0)  # mboard 0
                 clock_info["clock_source"] = current_clock_source
+                capabilities["clock_source"] = current_clock_source
                 reply["log"].append(f"INFO: Current clock source: {current_clock_source}")
             except Exception as e:
                 reply["log"].append(f"INFO: Could not get current clock source: {e}")
@@ -431,6 +497,7 @@ def probe_local_uhd_usrp(sdr_details):
             try:
                 time_sources = usrp.get_time_sources(0)  # mboard 0
                 clock_info["available_time_sources"] = list(time_sources)
+                capabilities["time_sources"] = list(time_sources)
                 reply["log"].append(
                     f"INFO: Available time sources: {clock_info['available_time_sources']}"
                 )
@@ -441,6 +508,7 @@ def probe_local_uhd_usrp(sdr_details):
             try:
                 current_time_source = usrp.get_time_source(0)  # mboard 0
                 clock_info["time_source"] = current_time_source
+                capabilities["time_source"] = current_time_source
                 reply["log"].append(f"INFO: Current time source: {current_time_source}")
             except Exception as e:
                 reply["log"].append(f"INFO: Could not get current time source: {e}")
@@ -449,6 +517,7 @@ def probe_local_uhd_usrp(sdr_details):
             try:
                 master_clock_rate = usrp.get_master_clock_rate()
                 clock_info["master_clock_rate"] = master_clock_rate
+                capabilities["clock_rate"] = master_clock_rate
                 reply["log"].append(f"INFO: Master clock rate: {master_clock_rate} Hz")
             except Exception as e:
                 reply["log"].append(f"INFO: Could not get master clock rate: {e}")
@@ -463,6 +532,8 @@ def probe_local_uhd_usrp(sdr_details):
                         if "ref_locked" in sensors:
                             ref_locked = usrp.get_mboard_sensor("ref_locked", 0)
                             clock_info["ref_locked"] = ref_locked.to_bool()
+                            capabilities["sensors"].append("ref_locked")
+                            capabilities["sensor_values"]["ref_locked"] = ref_locked.to_bool()
                             reply["log"].append(
                                 f"INFO: Reference locked: {clock_info['ref_locked']}"
                             )
@@ -492,6 +563,7 @@ def probe_local_uhd_usrp(sdr_details):
             "antennas": antennas,
             "frequency_ranges": frequency_ranges,
             "clock_info": clock_info,
+            "capabilities": capabilities,
         }
 
     return reply

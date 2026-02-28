@@ -119,9 +119,6 @@ const initialState = {
     gain: "none",
     rtlGains: [0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7, 16.6, 19.7, 20.7, 22.9, 25.4,
         28.0, 29.7, 32.8, 33.8, 36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6],
-    biasT: false,
-    tunerAgc: false,
-    rtlAgc: false,
     sampleRate: "none",
     centerFrequency: 100000000,
     selectedOffsetMode: "",
@@ -159,6 +156,8 @@ const initialState = {
     gettingSDRParameters: false,
     gainValues: [],
     sampleRateValues: [],
+    sdrCapabilities: {},
+    sdrSettingsById: {},
     hasBiasT: false,
     hasTunerAgc: false,
     hasRtlAgc: false,
@@ -169,7 +168,6 @@ const initialState = {
         'rx': [],
     },
     hasSoapyAgc: false,
-    soapyAgc: false,
     selectedAntenna: 'none',
     bookmarks: [],
     showRotatorDottedLines: true,
@@ -253,14 +251,115 @@ export const waterfallSlice = createSlice({
         setGridEditable: (state, action) => {
             state.gridEditable = action.payload;
         },
-        setBiasT: (state, action) => {
-            state.biasT = action.payload;
+        setSdrBiasT: (state, action) => {
+            const { sdrId, value } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft.biasT = value;
         },
-        setTunerAgc: (state, action) => {
-            state.tunerAgc = action.payload;
+        setSdrBitpack: (state, action) => {
+            const { sdrId, value } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft.bitpack = value;
         },
-        setRtlAgc: (state, action) => {
-            state.rtlAgc = action.payload;
+        setSdrGainElement: (state, action) => {
+            const { sdrId, name, value } = action.payload || {};
+            if (!sdrId || !name) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            const existing = state.sdrSettingsById[sdrId].draft.gains || {};
+            state.sdrSettingsById[sdrId].draft.gains = {
+                ...existing,
+                [name]: value,
+            };
+        },
+        setSdrClockSource: (state, action) => {
+            const { sdrId, value } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft.clockSource = value ?? null;
+        },
+        setSdrTimeSource: (state, action) => {
+            const { sdrId, value } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft.timeSource = value ?? null;
+        },
+        setSdrSettings: (state, action) => {
+            const { sdrId, settings } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft = {
+                ...(state.sdrSettingsById[sdrId].draft || {}),
+                ...(settings || {}),
+            };
+        },
+        setSdrSettingsApplied: (state, action) => {
+            const { sdrId, settings } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].applied = {
+                ...(state.sdrSettingsById[sdrId].applied || {}),
+                ...(settings || {}),
+            };
+        },
+        setSdrTunerAgc: (state, action) => {
+            const { sdrId, value } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft.tunerAgc = value;
+        },
+        setSdrRtlAgc: (state, action) => {
+            const { sdrId, value } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft.rtlAgc = value;
+        },
+        setSdrSoapyAgc: (state, action) => {
+            const { sdrId, value } = action.payload || {};
+            if (!sdrId) {
+                return;
+            }
+            if (!state.sdrSettingsById[sdrId]) {
+                state.sdrSettingsById[sdrId] = { draft: {}, applied: {} };
+            }
+            state.sdrSettingsById[sdrId].draft.soapyAgc = value;
         },
         setFFTWindow: (state, action) => {
             state.fftWindow = action.payload;
@@ -313,9 +412,6 @@ export const waterfallSlice = createSlice({
         setHasSoapyAgc(state, action) {
             state.hasSoapyAgc = action.payload;
         },
-        setSoapyAgc(state, action) {
-            state.soapyAgc = action.payload;
-        },
         setSelectedTransmitterId(state, action) {
             state.selectedTransmitterId = action.payload;
         },
@@ -333,9 +429,42 @@ export const waterfallSlice = createSlice({
             if (config.gain !== undefined) state.gain = config.gain;
             if (config.fft_size !== undefined) state.fftSize = config.fft_size;
             if (config.fft_window !== undefined) state.fftWindow = config.fft_window;
-            if (config.bias_t !== undefined) state.biasT = config.bias_t;
-            if (config.tuner_agc !== undefined) state.tunerAgc = config.tuner_agc;
-            if (config.rtl_agc !== undefined) state.rtlAgc = config.rtl_agc;
+            if (config.bias_t !== undefined && config.sdr_id) {
+                if (!state.sdrSettingsById[config.sdr_id]) {
+                    state.sdrSettingsById[config.sdr_id] = { draft: {}, applied: {} };
+                }
+                state.sdrSettingsById[config.sdr_id].applied.biasT = config.bias_t;
+                if (state.sdrSettingsById[config.sdr_id].draft.biasT === undefined) {
+                    state.sdrSettingsById[config.sdr_id].draft.biasT = config.bias_t;
+                }
+            }
+            if (config.tuner_agc !== undefined && config.sdr_id) {
+                if (!state.sdrSettingsById[config.sdr_id]) {
+                    state.sdrSettingsById[config.sdr_id] = { draft: {}, applied: {} };
+                }
+                state.sdrSettingsById[config.sdr_id].applied.tunerAgc = config.tuner_agc;
+                if (state.sdrSettingsById[config.sdr_id].draft.tunerAgc === undefined) {
+                    state.sdrSettingsById[config.sdr_id].draft.tunerAgc = config.tuner_agc;
+                }
+            }
+            if (config.rtl_agc !== undefined && config.sdr_id) {
+                if (!state.sdrSettingsById[config.sdr_id]) {
+                    state.sdrSettingsById[config.sdr_id] = { draft: {}, applied: {} };
+                }
+                state.sdrSettingsById[config.sdr_id].applied.rtlAgc = config.rtl_agc;
+                if (state.sdrSettingsById[config.sdr_id].draft.rtlAgc === undefined) {
+                    state.sdrSettingsById[config.sdr_id].draft.rtlAgc = config.rtl_agc;
+                }
+            }
+            if (config.soapy_agc !== undefined && config.sdr_id) {
+                if (!state.sdrSettingsById[config.sdr_id]) {
+                    state.sdrSettingsById[config.sdr_id] = { draft: {}, applied: {} };
+                }
+                state.sdrSettingsById[config.sdr_id].applied.soapyAgc = config.soapy_agc;
+                if (state.sdrSettingsById[config.sdr_id].draft.soapyAgc === undefined) {
+                    state.sdrSettingsById[config.sdr_id].draft.soapyAgc = config.soapy_agc;
+                }
+            }
             if (config.fft_averaging !== undefined) state.fftAveraging = config.fft_averaging;
         },
         setShowRotatorDottedLines: (state, action) => {
@@ -421,6 +550,10 @@ export const waterfallSlice = createSlice({
                 state.gettingSDRParameters = false;
                 state.gainValues = action.payload['gain_values'];
                 state.sampleRateValues = action.payload['sample_rate_values'];
+                const sdrId = action.meta?.arg?.selectedSDRId;
+                if (sdrId) {
+                    state.sdrCapabilities[sdrId] = action.payload['capabilities'] || {};
+                }
                 state.hasBiasT = action.payload['has_bias_t'];
                 state.hasTunerAgc = action.payload['has_tuner_agc'];
                 state.hasRtlAgc = action.payload['has_rtl_agc'];
@@ -478,9 +611,16 @@ export const {
     setSettingsDialogOpen,
     setAutoDBRange,
     setGridEditable,
-    setBiasT,
-    setTunerAgc,
-    setRtlAgc,
+    setSdrBiasT,
+    setSdrBitpack,
+    setSdrGainElement,
+    setSdrClockSource,
+    setSdrTimeSource,
+    setSdrSettings,
+    setSdrSettingsApplied,
+    setSdrTunerAgc,
+    setSdrRtlAgc,
+    setSdrSoapyAgc,
     setFFTWindow,
     setWaterFallCanvasWidth,
     setWaterFallVisualWidth,
@@ -498,7 +638,6 @@ export const {
     setBookMarks,
     setSelectedAntenna,
     setHasSoapyAgc,
-    setSoapyAgc,
     setSelectedTransmitterId,
     setSelectedOffsetMode,
     setSelectedOffsetValue,

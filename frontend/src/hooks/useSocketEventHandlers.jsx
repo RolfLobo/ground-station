@@ -91,9 +91,6 @@ import {
     setGain,
     setFFTSize,
     setFFTWindow,
-    setBiasT,
-    setTunerAgc,
-    setRtlAgc,
     setFFTAveraging,
     updateSDRConfig,
     setIsStreaming,
@@ -375,7 +372,8 @@ export const useSocketEventHandlers = (socket) => {
 
         // SDR configuration updates
         socket.on('sdr-config', (data) => {
-            store.dispatch(updateSDRConfig(data));
+            const currentSdrId = store.getState()?.waterfall?.selectedSDRId;
+            store.dispatch(updateSDRConfig({ ...data, sdr_id: currentSdrId }));
         });
 
         // SDR streaming status

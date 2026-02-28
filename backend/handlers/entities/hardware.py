@@ -18,7 +18,9 @@
 import asyncio
 import json
 import logging
+import math
 import sys
+from bisect import bisect_left
 from typing import Any, Dict, Optional, Union
 
 import crud
@@ -32,6 +34,62 @@ logger = logging.getLogger("hardware-handler")
 
 # Create a cache dictionary to store SDR parameters by SDR ID
 sdr_parameters_cache: Dict[str, Dict] = {}
+
+
+def _nearest_rate(sorted_rates: list[float], target: float) -> float:
+    if not sorted_rates:
+        return target
+    idx = bisect_left(sorted_rates, target)
+    if idx <= 0:
+        return sorted_rates[0]
+    if idx >= len(sorted_rates):
+        return sorted_rates[-1]
+    before = sorted_rates[idx - 1]
+    after = sorted_rates[idx]
+    return after if abs(after - target) < abs(target - before) else before
+
+
+def _select_neat_sample_rates(rates: list[float]) -> list[float]:
+    clean_rates = sorted({float(r) for r in rates if r and r > 0})
+    if len(clean_rates) <= 50:
+        return clean_rates
+
+    min_rate = clean_rates[0]
+    max_rate = clean_rates[-1]
+    log_min = math.log10(min_rate)
+    log_max = math.log10(max_rate)
+
+    selected: set[float] = set()
+    targets: list[float] = []
+    for exp in range(int(math.floor(log_min)), int(math.ceil(log_max)) + 1):
+        for base in (1.0, 2.0, 2.5, 5.0):
+            target = base * (10**exp)
+            if min_rate <= target <= max_rate:
+                targets.append(target)
+
+    for target in targets:
+        nearest = _nearest_rate(clean_rates, target)
+        tolerance = max(target * 0.01, 1.0)
+        if abs(nearest - target) <= tolerance:
+            selected.add(nearest)
+
+    selected.add(min_rate)
+    selected.add(max_rate)
+
+    if len(selected) < 20:
+        for i in range(20):
+            target = 10 ** (log_min + (log_max - log_min) * (i / 19))
+            selected.add(_nearest_rate(clean_rates, target))
+
+    return sorted(selected)
+
+
+def _strip_sample_rate_ranges(capabilities: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(capabilities, dict):
+        return capabilities
+    sanitized = dict(capabilities)
+    sanitized.pop("sample_rate_ranges", None)
+    return sanitized
 
 
 async def get_local_soapy_sdr_devices():
@@ -295,7 +353,8 @@ async def _fetch_sdr_parameters(dbsession, sdr_id, timeout=30.0):
 
             params = {
                 "gain_values": sdr_params["gains"],
-                "sample_rate_values": [rate for rate in sdr_params["rates"] if rate >= 500000],
+                "sample_rate_values": _select_neat_sample_rates(sdr_params["rates"]),
+                "sample_rate_values_full": sdr_params["rates"],
                 "fft_size_values": fft_size_values,
                 "fft_window_values": window_function_names,
                 "has_soapy_agc": sdr_params["has_soapy_agc"],
@@ -303,7 +362,19 @@ async def _fetch_sdr_parameters(dbsession, sdr_id, timeout=30.0):
                 "frequency_ranges": sdr_params.get("frequency_ranges", {}),
                 "clock_info": sdr_params.get("clock_info", {}),
                 "temperature": sdr_params.get("temperature", {}),
+                "capabilities": _strip_sample_rate_ranges(sdr_params.get("capabilities", {})),
             }
+
+            # try:
+            #     pretty_params = json.dumps(params, indent=2, sort_keys=True)
+            #     print(
+            #         f"[DEBUG] SoapySDR parameters for {sdr.get('name', sdr_id)}:\\n{pretty_params}"
+            #     )
+            # except Exception as e:
+            #     print(
+            #         f"[DEBUG] SoapySDR parameters (non-JSON) for {sdr.get('name', sdr_id)}: {params}"
+            #     )
+            #     print(f"[DEBUG] Pretty print failed: {e}")
 
             sdr_parameters_cache[sdr_id] = params
             reply = {"success": True, "data": params}
@@ -355,6 +426,7 @@ async def _fetch_sdr_parameters(dbsession, sdr_id, timeout=30.0):
                 "frequency_ranges": sdr_params.get("frequency_ranges", {}),
                 "clock_info": sdr_params.get("clock_info", {}),
                 "temperature": sdr_params.get("temperature", {}),
+                "capabilities": _strip_sample_rate_ranges(sdr_params.get("capabilities", {})),
             }
 
             sdr_parameters_cache[sdr_id] = params

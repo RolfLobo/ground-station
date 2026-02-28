@@ -152,6 +152,8 @@ async def sdr_data_request_routing(sio, cmd, data, logger, client_id):
                 # Default FFT size
                 fft_size = _coerce_int(data.get("fftSize", 1024), 1024, "fftSize", logger)
 
+                logger.info(f"SDR configure payload: {data}")
+
                 # Enable/disable Bias-T
                 bias_t = data.get("biasT", False)
 
@@ -184,6 +186,12 @@ async def sdr_data_request_routing(sio, cmd, data, logger, client_id):
                 # Recording path for sigmfplayback
                 recording_path = data.get("recordingPath", "")
 
+                # Optional SDR settings (SoapySDR-specific capabilities)
+                sdr_settings = data.get("sdrSettings", {})
+                if sdr_settings is not None and not isinstance(sdr_settings, dict):
+                    logger.warning("Invalid sdrSettings payload; expected dict.")
+                    sdr_settings = {}
+
                 # SDR configuration dictionary
                 sdr_config = SDRConfig(
                     center_freq=center_freq,
@@ -204,6 +212,7 @@ async def sdr_data_request_routing(sio, cmd, data, logger, client_id):
                     soapy_agc=soapy_agc,
                     offset_freq=offset_freq,
                     antenna=antenna,
+                    sdr_settings=sdr_settings,
                 ).to_dict()
 
                 # Create or update SDR session via SessionService (also updates tracker)

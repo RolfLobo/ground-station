@@ -283,6 +283,7 @@ class ProcessLifecycleManager:
                 "ppm_error",
                 "recording_path",
                 "loop_playback",
+                "sdr_settings",
             ]:
                 if param in sdr_config:
                     config[param] = sdr_config[param]
@@ -358,6 +359,7 @@ class ProcessLifecycleManager:
                 antenna=sdr_config.get("antenna", "RX"),
                 ppm_error=sdr_config.get("ppm_error"),
                 loop_playback=sdr_config.get("loop_playback", True),
+                sdr_settings=sdr_config.get("sdr_settings") or {},
             ).to_dict()
 
             if not worker_process:

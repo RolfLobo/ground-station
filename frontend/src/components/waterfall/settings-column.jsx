@@ -31,8 +31,8 @@ import {
     getSDRConfigParameters,
     setErrorDialogOpen,
     setGridEditable,
-    setRtlAgc,
-    setTunerAgc,
+    setSdrRtlAgc,
+    setSdrTunerAgc,
     setColorMap,
     setColorMaps,
     setDbRange,
@@ -47,12 +47,18 @@ import {
     setTargetFPS,
     setSettingsDialogOpen,
     setAutoDBRange,
-    setBiasT,
+    setSdrBiasT,
+    setSdrBitpack,
+    setSdrGainElement,
+    setSdrClockSource,
+    setSdrTimeSource,
+    setSdrSettings,
+    setSdrSettingsApplied,
     setFFTWindow,
     setExpandedPanels,
     setSelectedSDRId,
     setSelectedAntenna,
-    setSoapyAgc,
+    setSdrSoapyAgc,
     setSelectedTransmitterId,
     setSelectedOffsetMode,
     setSelectedOffsetValue,
@@ -109,9 +115,7 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
         settingsDialogOpen,
         autoDBRange,
         gridEditable,
-        biasT,
-        tunerAgc,
-        rtlAgc,
+        
         rtlGains,
         fftWindow,
         fftWindows,
@@ -120,6 +124,8 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
         gettingSDRParameters,
         gainValues,
         sampleRateValues,
+        sdrCapabilities,
+        sdrSettingsById,
         hasBiasT,
         hasTunerAgc,
         hasRtlAgc,
@@ -128,7 +134,7 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
         antennasList,
         selectedAntenna,
         hasSoapyAgc,
-        soapyAgc,
+        
         selectedTransmitterId,
         fftAveraging,
         isRecording,
@@ -138,6 +144,12 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
         playbackRecordingPath,
         playbackStartTime,
     } = useSelector((state) => state.waterfall);
+
+    const sdrSettings = sdrSettingsById?.[selectedSDRId]?.draft || {};
+    const biasT = sdrSettings?.biasT ?? false;
+    const tunerAgc = sdrSettings?.tunerAgc ?? false;
+    const rtlAgc = sdrSettings?.rtlAgc ?? false;
+    const soapyAgc = sdrSettings?.soapyAgc ?? false;
 
     const {
         selectedVFO,
@@ -212,17 +224,40 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
         dispatch(setExpandedPanels(updateExpandedPanels(expandedPanels)));
     };
 
+    const getValidGainElements = (sdrId) => {
+        const caps = sdrCapabilities?.[sdrId];
+        return Array.isArray(caps?.gain_elements?.rx) ? caps.gain_elements.rx : [];
+    };
+
+    const filterGains = (gains, sdrId) => {
+        if (!gains || typeof gains !== 'object') {
+            return {};
+        }
+        const valid = getValidGainElements(sdrId);
+        if (valid.length === 0) {
+            return gains;
+        }
+        const filtered = {};
+        valid.forEach((name) => {
+            if (Object.prototype.hasOwnProperty.call(gains, name)) {
+                filtered[name] = gains[name];
+            }
+        });
+        return filtered;
+    };
+
     // Convert to useCallback to ensure stability of the function reference
     const sendSDRConfigToBackend = useCallback((updates = {}) => {
-            if (selectedSDRId !== "none" && selectedSDRId !== "") {
+            const targetSDRId = updates.selectedSDRId ?? selectedSDRId;
+            if (targetSDRId !== "none" && targetSDRId !== "") {
                 // For sigmfplayback, NEVER send configure without a recording path
                 // This prevents overwriting the session with empty recording_path
-                if (selectedSDRId === "sigmf-playback" && !playbackRecordingPath) {
+                if (targetSDRId === "sigmf-playback" && !playbackRecordingPath) {
                     return;
                 }
 
                 let SDRSettings = {
-                    selectedSDRId: selectedSDRId,
+                    selectedSDRId: targetSDRId,
                     centerFrequency: centerFrequency,
                     sampleRate: sampleRate,
                     gain: gain,
@@ -236,9 +271,27 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
                     offsetFrequency: selectedOffsetValue,
                     fftAveraging: fftAveraging,
                     recordingPath: playbackRecordingPath,
+                    sdrSettings: sdrSettingsById?.[targetSDRId]?.draft || {},
                 }
                 SDRSettings = {...SDRSettings, ...updates};
+                if (SDRSettings.sdrSettings) {
+                    SDRSettings = {
+                        ...SDRSettings,
+                        sdrSettings: {
+                            ...(SDRSettings.sdrSettings || {}),
+                            gains: filterGains(SDRSettings.sdrSettings?.gains, targetSDRId),
+                        },
+                    };
+                }
                 socket.emit('sdr_data', 'configure-sdr', SDRSettings);
+                if (SDRSettings.sdrSettings) {
+                    dispatch(
+                        setSdrSettingsApplied({
+                            sdrId: targetSDRId,
+                            settings: SDRSettings.sdrSettings,
+                        })
+                    );
+                }
             }
         }, [
             selectedSDRId,
@@ -257,6 +310,8 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
             selectedAntenna,
             soapyAgc,
             isStreaming,
+            sdrSettingsById,
+            sdrCapabilities,
         ]
     );
 
@@ -278,7 +333,79 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
             dispatch(getSDRConfigParameters({socket, selectedSDRId: selectedValue}))
                 .unwrap()
                 .then(response => {
-                    // Handle successful response
+                    const caps = response?.capabilities || {};
+                    const rxGainElements = Array.isArray(caps?.gain_elements?.rx)
+                        ? caps.gain_elements.rx
+                        : [];
+                    const hasBitpackSetting = Array.isArray(caps?.settings)
+                        ? caps.settings.some((setting) => {
+                            const key = (setting?.key || '').toLowerCase();
+                            const name = (setting?.name || '').toLowerCase();
+                            return key === 'bitpack' || name.includes('bit pack');
+                        })
+                        : false;
+
+                    const existingSettings = sdrSettingsById?.[selectedValue]?.draft || {};
+                    const nextSdrSettings = {
+                        ...(existingSettings || {}),
+                        gains: {
+                            ...(existingSettings?.gains || {}),
+                        },
+                    };
+
+                    if (rxGainElements.length > 0) {
+                        const filteredGains = {};
+                        rxGainElements.forEach((name) => {
+                            if (Object.prototype.hasOwnProperty.call(nextSdrSettings.gains, name)) {
+                                filteredGains[name] = nextSdrSettings.gains[name];
+                            } else {
+                                filteredGains[name] = null;
+                            }
+                        });
+                        nextSdrSettings.gains = filteredGains;
+                    }
+
+                    if (hasBitpackSetting && nextSdrSettings.bitpack == null) {
+                        const bitpackSetting = (caps.settings || []).find((setting) => {
+                            const key = (setting?.key || '').toLowerCase();
+                            const name = (setting?.name || '').toLowerCase();
+                            return key === 'bitpack' || name.includes('bit pack');
+                        });
+                        nextSdrSettings.bitpack = Boolean(bitpackSetting?.value);
+                    }
+
+                    if (nextSdrSettings.biasT == null && caps?.bias_t?.supported) {
+                        nextSdrSettings.biasT = Boolean(caps?.bias_t?.value);
+                    }
+
+                    if (nextSdrSettings.tunerAgc == null) {
+                        nextSdrSettings.tunerAgc = false;
+                    }
+                    if (nextSdrSettings.rtlAgc == null) {
+                        nextSdrSettings.rtlAgc = false;
+                    }
+                    if (nextSdrSettings.soapyAgc == null) {
+                        nextSdrSettings.soapyAgc = false;
+                    }
+
+                    if (Array.isArray(caps?.clock_sources) && caps.clock_sources.length > 0) {
+                        if (!nextSdrSettings.clockSource) {
+                            nextSdrSettings.clockSource = caps.clock_source ?? caps.clock_sources[0] ?? null;
+                        }
+                    }
+
+                    if (Array.isArray(caps?.time_sources) && caps.time_sources.length > 0) {
+                        if (!nextSdrSettings.timeSource) {
+                            nextSdrSettings.timeSource = caps.time_source ?? caps.time_sources[0] ?? null;
+                        }
+                    }
+
+                    dispatch(setSdrSettings({ sdrId: selectedValue, settings: nextSdrSettings }));
+                    dispatch(setSdrSettingsApplied({ sdrId: selectedValue, settings: nextSdrSettings }));
+                    sendSDRConfigToBackend({
+                        selectedSDRId: selectedValue,
+                        sdrSettings: nextSdrSettings,
+                    });
                 })
                 .catch(error => {
                     // Error occurred while getting SDR parameters
@@ -286,7 +413,7 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
                     dispatch(setErrorDialogOpen(true));
                 });
         }
-    }, [dispatch, getSDRConfigParameters, setErrorDialogOpen, setErrorMessage, setIsStreaming, setSelectedSDRId, socket]);
+    }, [dispatch, getSDRConfigParameters, sendSDRConfigToBackend, sdrSettingsById, setErrorDialogOpen, setErrorMessage, setIsStreaming, setSelectedSDRId, socket]);
 
     // Expose the function to parent components
     useImperativeHandle(ref, () => ({
@@ -310,17 +437,87 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
     };
 
     const updateBiasT = (enabled) => (dispatch) => {
-        dispatch(setBiasT(enabled));
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        dispatch(setSdrBiasT({ sdrId: selectedSDRId, value: enabled }));
         return sendSDRConfigToBackend({biasT: enabled});
     };
 
+    const updateBitpack = (enabled) => (dispatch) => {
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        dispatch(setSdrBitpack({ sdrId: selectedSDRId, value: enabled }));
+        return sendSDRConfigToBackend({
+            sdrSettings: {
+                ...(sdrSettings || {}),
+                bitpack: enabled,
+                gains: sdrSettings?.gains || {},
+            },
+        });
+    };
+
+    const updateGainElement = (name, value) => (dispatch) => {
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        const validGainElements = getValidGainElements(selectedSDRId);
+        if (validGainElements.length > 0 && !validGainElements.includes(name)) {
+            return;
+        }
+        const nextGains = {
+            ...(sdrSettings?.gains || {}),
+            [name]: value,
+        };
+        dispatch(setSdrGainElement({ sdrId: selectedSDRId, name, value }));
+        return sendSDRConfigToBackend({
+            sdrSettings: {
+                ...(sdrSettings || {}),
+                bitpack: sdrSettings?.bitpack ?? null,
+                gains: filterGains(nextGains, selectedSDRId),
+            },
+        });
+    };
+
+    const updateClockSource = (value) => (dispatch) => {
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        dispatch(setSdrClockSource({ sdrId: selectedSDRId, value }));
+        return sendSDRConfigToBackend({
+            sdrSettings: {
+                ...(sdrSettings || {}),
+                clockSource: value,
+            },
+        });
+    };
+
+    const updateTimeSource = (value) => (dispatch) => {
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        dispatch(setSdrTimeSource({ sdrId: selectedSDRId, value }));
+        return sendSDRConfigToBackend({
+            sdrSettings: {
+                ...(sdrSettings || {}),
+                timeSource: value,
+            },
+        });
+    };
     const updateTunerAgc = (enabled) => (dispatch) => {
-        dispatch(setTunerAgc(enabled));
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        dispatch(setSdrTunerAgc({ sdrId: selectedSDRId, value: enabled }));
         return sendSDRConfigToBackend({tunerAgc: enabled});
     };
 
     const updateRtlAgc = (enabled) => (dispatch) => {
-        dispatch(setRtlAgc(enabled));
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        dispatch(setSdrRtlAgc({ sdrId: selectedSDRId, value: enabled }));
         return sendSDRConfigToBackend({rtlAgc: enabled});
     };
 
@@ -345,7 +542,10 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
     };
 
     const updateSoapyAgc = (enabled) => (dispatch) => {
-        dispatch(setSoapyAgc(enabled));
+        if (!selectedSDRId || selectedSDRId === "none") {
+            return;
+        }
+        dispatch(setSdrSoapyAgc({ sdrId: selectedSDRId, value: enabled }));
         return sendSDRConfigToBackend({soapyAgc: enabled});
     };
 
@@ -715,9 +915,15 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
                     antennasList={antennasList}
                     selectedAntenna={selectedAntenna}
                     onAntennaChange={(value) => dispatch(updateSelectedAntenna(value))}
+                    sdrCapabilities={sdrCapabilities}
+                    sdrSettings={sdrSettings}
                     hasBiasT={hasBiasT}
                     biasT={biasT}
                     onBiasTChange={(checked) => dispatch(updateBiasT(checked))}
+                    onBitpackChange={(checked) => dispatch(updateBitpack(checked))}
+                    onGainElementChange={(name, value) => dispatch(updateGainElement(name, value))}
+                    onClockSourceChange={(value) => dispatch(updateClockSource(value))}
+                    onTimeSourceChange={(value) => dispatch(updateTimeSource(value))}
                     hasTunerAgc={hasTunerAgc}
                     tunerAgc={tunerAgc}
                     onTunerAgcChange={(checked) => dispatch(updateTunerAgc(checked))}

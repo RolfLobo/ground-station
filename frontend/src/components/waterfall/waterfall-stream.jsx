@@ -7,9 +7,6 @@ import {
     setGain,
     setFFTSize,
     setFFTWindow,
-    setBiasT,
-    setTunerAgc,
-    setRtlAgc,
     setFFTAveraging,
     setIsStreaming,
     setErrorMessage,
@@ -37,13 +34,10 @@ const useWaterfallStream = ({
         sampleRate,
         gain,
         fftSize,
-        biasT,
-        tunerAgc,
-        rtlAgc,
+        sdrSettingsById,
         fftWindow,
         selectedAntenna,
         selectedOffsetValue,
-        soapyAgc,
         fftAveraging,
         isStreaming,
         gettingSDRParameters,
@@ -51,6 +45,11 @@ const useWaterfallStream = ({
         playbackRecordingPath,
         isRecording,
     } = useSelector((state) => state.waterfall);
+
+    const biasT = sdrSettingsById?.[selectedSDRId]?.draft?.biasT ?? false;
+    const tunerAgc = sdrSettingsById?.[selectedSDRId]?.draft?.tunerAgc ?? false;
+    const rtlAgc = sdrSettingsById?.[selectedSDRId]?.draft?.rtlAgc ?? false;
+    const soapyAgc = sdrSettingsById?.[selectedSDRId]?.draft?.soapyAgc ?? false;
 
     const {
         vfoActive,
@@ -204,6 +203,7 @@ const useWaterfallStream = ({
                 offsetFrequency: selectedOffsetValue,
                 soapyAgc,
                 fftAveraging,
+                sdrSettings: sdrSettingsById?.[selectedSDRId]?.draft || {},
             }, (response) => {
                 if (response['success']) {
                     socket.emit('sdr_data', 'start-streaming', { selectedSDRId });

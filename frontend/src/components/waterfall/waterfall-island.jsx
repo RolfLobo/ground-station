@@ -51,9 +51,6 @@ import {
     setErrorMessage,
     setErrorDialogOpen,
     setIsStreaming,
-    setBiasT,
-    setTunerAgc,
-    setRtlAgc,
     setStartStreamingLoading,
     setAutoDBRange,
     setShowRightSideWaterFallAccessories,
@@ -179,13 +176,9 @@ const MainWaterfallDisplay = React.memo(function MainWaterfallDisplay({
         isPlaying,
         autoDBRange,
         gridEditable,
-        biasT,
-        tunerAgc,
-        rtlAgc,
         fftWindow,
         fftAveraging,
         dBRange,
-        soapyAgc,
         waterFallVisualWidth,
         waterFallCanvasWidth,
         waterFallCanvasHeight,
@@ -205,7 +198,12 @@ const MainWaterfallDisplay = React.memo(function MainWaterfallDisplay({
         autoScalePreset,
         waterFallScaleX,
         waterFallPositionX,
+        sdrSettingsById,
     } = useSelector((state) => state.waterfall);
+
+    const tunerAgc = sdrSettingsById?.[selectedSDRId]?.draft?.tunerAgc ?? false;
+    const rtlAgc = sdrSettingsById?.[selectedSDRId]?.draft?.rtlAgc ?? false;
+    const soapyAgc = sdrSettingsById?.[selectedSDRId]?.draft?.soapyAgc ?? false;
 
     const {
         vfoMarkers,

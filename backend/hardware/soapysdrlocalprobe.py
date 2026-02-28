@@ -55,6 +55,7 @@ class SDRData(TypedDict):
     frequency_ranges: Dict[str, FrequencyRange]
     clock_info: ClockInfo
     temperature: Dict[str, str]
+    capabilities: Dict[str, Any]
 
 
 class ProbeReply(TypedDict):
@@ -101,6 +102,232 @@ def probe_local_soapy_sdr(sdr_details: Dict[str, Any]) -> ProbeReply:
         "available_settings": {},
     }
     temp_info: Dict[str, str] = {}
+    capabilities: Dict[str, Any] = {}
+
+    def _serialize_range(range_obj: Any) -> Optional[Dict[str, Any]]:
+        if range_obj is None:
+            return None
+        if hasattr(range_obj, "minimum") and hasattr(range_obj, "maximum"):
+            return {
+                "min": range_obj.minimum(),
+                "max": range_obj.maximum(),
+                "step": range_obj.step() if hasattr(range_obj, "step") else None,
+            }
+        return None
+
+    def _normalize_value(value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if value == "":
+                return None
+            lowered = value.strip().lower()
+            if lowered == "true":
+                return True
+            if lowered == "false":
+                return False
+            return value
+        if isinstance(value, (bool, int, float)):
+            return value
+        if isinstance(value, dict):
+            return {str(k): _normalize_value(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [_normalize_value(v) for v in value]
+        if isinstance(value, (bytes, bytearray)):
+            return str(value)
+        if hasattr(value, "__iter__"):
+            try:
+                return [_normalize_value(v) for v in list(value)]
+            except Exception:
+                pass
+        return str(value)
+
+    def _normalize_setting_type(type_value: Any) -> Any:
+        if isinstance(type_value, (int, float)) and not isinstance(type_value, bool):
+            type_map = {
+                0: "bool",
+                1: "int",
+                2: "float",
+                3: "string",
+                4: "path",
+            }
+            return type_map.get(int(type_value), type_value)
+        return type_value
+
+    def _postprocess_caps(caps: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(caps, dict):
+            return caps
+        # Normalize empty bandwidth lists to null
+        for direction in ("rx", "tx"):
+            bandwidths = caps.get("bandwidths", {}).get(direction)
+            if isinstance(bandwidths, list) and len(bandwidths) == 0:
+                caps["bandwidths"][direction] = None
+        # Normalize gain range step == 0 to null
+        for direction in ("rx", "tx"):
+            gain_ranges = caps.get("gain_ranges", {}).get(direction, {})
+            if isinstance(gain_ranges, dict):
+                for gain_name, gain_range in gain_ranges.items():
+                    if isinstance(gain_range, dict) and gain_range.get("step") == 0:
+                        gain_range["step"] = None
+                        gain_ranges[gain_name] = gain_range
+        # Normalize empty clock/time sources to null
+        for key in ("clock_sources", "time_sources", "clock_rates"):
+            if isinstance(caps.get(key), list) and len(caps[key]) == 0:
+                caps[key] = None
+        return caps
+
+    def _collect_capabilities(device: Any, channel_index: int) -> Dict[str, Any]:
+        caps: Dict[str, Any] = {
+            "settings": [],
+            "sensors": [],
+            "sensor_values": {},
+            "clock_sources": [],
+            "clock_source": None,
+            "clock_rates": [],
+            "clock_rate": None,
+            "time_sources": [],
+            "time_source": None,
+            "gain_elements": {"rx": [], "tx": []},
+            "gain_ranges": {"rx": {}, "tx": {}},
+            "bandwidths": {"rx": [], "tx": []},
+            "sample_rate_ranges": {"rx": [], "tx": []},
+            "stream_formats": {"rx": [], "tx": []},
+            "native_stream_format": {"rx": None, "tx": None},
+            "agc": {"supported_rx": False, "supported_tx": False, "settings": []},
+            "bias_t": {"supported": False, "keys": [], "value": None},
+        }
+
+        try:
+            if hasattr(device, "getSettingInfo"):
+                for setting in device.getSettingInfo():
+                    entry = {
+                        "key": setting.key,
+                        "name": getattr(setting, "name", None),
+                        "description": getattr(setting, "description", None),
+                        "type": _normalize_setting_type(
+                            _normalize_value(getattr(setting, "type", None))
+                        ),
+                        "units": _normalize_value(getattr(setting, "units", None)),
+                        "range": _serialize_range(getattr(setting, "range", None)),
+                        "options": _normalize_value(getattr(setting, "options", None)),
+                        "value": None,
+                    }
+                    if isinstance(entry["options"], list) and len(entry["options"]) == 0:
+                        entry["options"] = None
+                    if hasattr(device, "readSetting"):
+                        try:
+                            entry["value"] = _normalize_value(device.readSetting(setting.key))
+                        except Exception:
+                            pass
+                    caps["settings"].append(entry)
+
+                    key_text = f"{setting.key} {entry.get('name', '')} {entry.get('description', '')}".lower()
+                    if "bias" in key_text:
+                        caps["bias_t"]["supported"] = True
+                        caps["bias_t"]["keys"].append(setting.key)
+                        if caps["bias_t"]["value"] is None and entry.get("value") is not None:
+                            caps["bias_t"]["value"] = entry.get("value")
+
+                    if "agc" in key_text:
+                        caps["agc"]["settings"].append(setting.key)
+        except Exception:
+            pass
+
+        try:
+            caps["sensors"] = device.listSensors()
+            for sensor in caps["sensors"]:
+                try:
+                    caps["sensor_values"][sensor] = device.readSensor(sensor)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            if hasattr(device, "listClockSources"):
+                caps["clock_sources"] = device.listClockSources()
+            if hasattr(device, "getClockSource"):
+                caps["clock_source"] = device.getClockSource()
+            if hasattr(device, "listClockRates"):
+                caps["clock_rates"] = device.listClockRates()
+            if hasattr(device, "getClockRate"):
+                caps["clock_rate"] = device.getClockRate()
+        except Exception:
+            pass
+
+        try:
+            if hasattr(device, "listTimeSources"):
+                caps["time_sources"] = device.listTimeSources()
+            if hasattr(device, "getTimeSource"):
+                caps["time_source"] = device.getTimeSource()
+        except Exception:
+            pass
+
+        try:
+            caps["agc"]["supported_rx"] = device.hasGainMode(SOAPY_SDR_RX, channel_index)
+        except Exception:
+            pass
+        try:
+            caps["agc"]["supported_tx"] = device.hasGainMode(SOAPY_SDR_TX, channel_index)
+        except Exception:
+            pass
+
+        for direction_name, direction in ("rx", SOAPY_SDR_RX), ("tx", SOAPY_SDR_TX):
+            try:
+                if hasattr(device, "listGains"):
+                    caps["gain_elements"][direction_name] = device.listGains(
+                        direction, channel_index
+                    )
+                    for gain_name in caps["gain_elements"][direction_name]:
+                        try:
+                            gain_range = device.getGainRange(direction, channel_index, gain_name)
+                            caps["gain_ranges"][direction_name][gain_name] = {
+                                "min": gain_range.minimum(),
+                                "max": gain_range.maximum(),
+                                "step": gain_range.step() if hasattr(gain_range, "step") else None,
+                            }
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            try:
+                if hasattr(device, "listBandwidths"):
+                    caps["bandwidths"][direction_name] = device.listBandwidths(
+                        direction, channel_index
+                    )
+            except Exception:
+                pass
+
+            try:
+                if hasattr(device, "getSampleRateRange"):
+                    ranges = device.getSampleRateRange(direction, channel_index)
+                    caps["sample_rate_ranges"][direction_name] = [
+                        {
+                            "min": r.minimum(),
+                            "max": r.maximum(),
+                            "step": r.step() if hasattr(r, "step") else None,
+                        }
+                        for r in ranges
+                    ]
+            except Exception:
+                pass
+
+            try:
+                if hasattr(device, "getStreamFormats"):
+                    caps["stream_formats"][direction_name] = device.getStreamFormats(
+                        direction, channel_index
+                    )
+                if hasattr(device, "getNativeStreamFormat"):
+                    fmt, full_scale = device.getNativeStreamFormat(direction, channel_index)
+                    caps["native_stream_format"][direction_name] = {
+                        "format": fmt,
+                        "full_scale": full_scale,
+                    }
+            except Exception:
+                pass
+
+        return _postprocess_caps(_normalize_value(caps))
 
     reply["log"].append(f"INFO: Connecting to local SoapySDR device with details: {sdr_details}")
 
@@ -311,6 +538,8 @@ def probe_local_soapy_sdr(sdr_details: Dict[str, Any]) -> ProbeReply:
 
         reply["success"] = True
 
+        capabilities = _collect_capabilities(sdr, channel)
+
     except Exception as e:
         reply["log"].append(f"ERROR: Error connecting to local SoapySDR device: {str(e)}")
         reply["success"] = False
@@ -325,6 +554,7 @@ def probe_local_soapy_sdr(sdr_details: Dict[str, Any]) -> ProbeReply:
             "frequency_ranges": frequency_ranges,
             "clock_info": clock_info,
             "temperature": temp_info,
+            "capabilities": capabilities,
         }
 
     return reply

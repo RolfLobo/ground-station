@@ -26,6 +26,87 @@ from SoapySDR import SOAPY_SDR_CF32, SOAPY_SDR_RX
 # Configure logging for the worker process
 logger = logging.getLogger("soapysdr-remote")
 
+
+def _normalize_setting_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _get_bias_setting_keys(sdr: SoapySDR.Device) -> List[str]:
+    keys: List[str] = []
+    if not hasattr(sdr, "getSettingInfo"):
+        return keys
+    try:
+        for setting in sdr.getSettingInfo():
+            key_text = f"{setting.key} {getattr(setting, 'name', '')} {getattr(setting, 'description', '')}"
+            if "bias" in key_text.lower():
+                keys.append(setting.key)
+    except Exception as e:
+        logger.warning(f"Failed to enumerate bias settings: {e}")
+    return keys
+
+
+def _apply_soapy_settings(
+    sdr: SoapySDR.Device,
+    channel: int,
+    sdr_settings: Dict[str, Any],
+    bias_t: Any,
+    bias_setting_keys: List[str],
+    soapy_agc: bool,
+) -> None:
+    if not isinstance(sdr_settings, dict):
+        sdr_settings = {}
+
+    # Bias-T via settings
+    if bias_t is not None and bias_setting_keys:
+        try:
+            value = _normalize_setting_value(bool(bias_t))
+            for key in bias_setting_keys:
+                sdr.writeSetting(key, value)
+            logger.info(f"Updated Bias-T via Soapy settings: {value}")
+        except Exception as e:
+            logger.warning(f"Failed to update Bias-T via Soapy settings: {e}")
+
+    # Bit packing via settings
+    if "bitpack" in sdr_settings and sdr_settings["bitpack"] is not None:
+        try:
+            value = _normalize_setting_value(bool(sdr_settings["bitpack"]))
+            sdr.writeSetting("bitpack", value)
+            logger.info(f"Updated Soapy setting bitpack: {value}")
+        except Exception as e:
+            logger.warning(f"Failed to update Soapy setting bitpack: {e}")
+
+    # Clock and time sources
+    clock_source = sdr_settings.get("clockSource")
+    if clock_source:
+        try:
+            sdr.setClockSource(clock_source)
+            logger.info(f"Updated clock source: {clock_source}")
+        except Exception as e:
+            logger.warning(f"Failed to update clock source: {e}")
+
+    time_source = sdr_settings.get("timeSource")
+    if time_source:
+        try:
+            sdr.setTimeSource(time_source)
+            logger.info(f"Updated time source: {time_source}")
+        except Exception as e:
+            logger.warning(f"Failed to update time source: {e}")
+
+    # Per-element gains (RX only)
+    gains = sdr_settings.get("gains")
+    if isinstance(gains, dict) and not soapy_agc:
+        for name, value in gains.items():
+            if value is None:
+                continue
+            try:
+                sdr.setGain(SOAPY_SDR_RX, channel, name, float(value))
+                logger.info(f"Updated gain element {name}: {value} dB")
+            except Exception as e:
+                logger.debug(f"Failed to update gain element {name}: {e}")
+
+
 # Target blocks per second for constant rate streaming
 # This determines block size: block_size = sample_rate / TARGET_BLOCKS_PER_SEC
 # Lower rate = larger blocks, less overhead, higher latency
@@ -108,6 +189,7 @@ def soapysdr_remote_worker_process(
         logger.info(f"Connecting to SoapySDR device with args: {device_args}")
 
         # Create the device instance
+        bias_setting_keys: List[str] = []
         try:
             # Attempt to connect to the specified device
             sdr = SoapySDR.Device(device_args)
@@ -116,6 +198,8 @@ def soapysdr_remote_worker_process(
             device_driver = sdr.getDriverKey()
             hardware = sdr.getHardwareKey()
             logger.info(f"Connected to {device_driver} ({hardware})")
+
+            bias_setting_keys = _get_bias_setting_keys(sdr)
 
             # Query supported sample rates
             channel = config.get("channel", 0)
@@ -167,6 +251,8 @@ def soapysdr_remote_worker_process(
         channel = config.get("channel", 0)
         offset_freq = int(config.get("offset_freq", 0))
         ppm_error = float(config.get("ppm_error", 0) or 0)
+        bias_t = config.get("bias_t", None)
+        sdr_settings = config.get("sdr_settings", {})
 
         # Set sample rate
         sdr.setSampleRate(SOAPY_SDR_RX, channel, sample_rate)
@@ -202,6 +288,15 @@ def soapysdr_remote_worker_process(
             sdr.setAntenna(SOAPY_SDR_RX, channel, antenna)
             selected_antenna = sdr.getAntenna(SOAPY_SDR_RX, channel)
             logger.info(f"Antenna set to {selected_antenna}")
+
+        _apply_soapy_settings(
+            sdr,
+            channel,
+            sdr_settings,
+            bias_t,
+            bias_setting_keys,
+            config.get("soapy_agc", False),
+        )
 
         # Enable DC offset correction for devices that support it (e.g., USRP B200/B210)
         try:
@@ -404,6 +499,19 @@ def soapysdr_remote_worker_process(
                                 logger.info(f"Updated frequency correction: {ppm_error} ppm")
                             except Exception as e:
                                 logger.warning(f"Failed to update frequency correction: {e}")
+
+                    if "bias_t" in new_config or "sdr_settings" in new_config:
+                        if old_config.get("bias_t") != new_config.get("bias_t") or old_config.get(
+                            "sdr_settings"
+                        ) != new_config.get("sdr_settings"):
+                            _apply_soapy_settings(
+                                sdr,
+                                channel,
+                                new_config.get("sdr_settings", {}),
+                                new_config.get("bias_t", None),
+                                bias_setting_keys,
+                                new_config.get("soapy_agc", False),
+                            )
 
                     old_config = new_config
 
