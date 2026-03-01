@@ -47,6 +47,7 @@ import {
     ListItemText,
     Tabs,
     Tab,
+    Switch,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon, ExpandMore as ExpandMoreIcon, ErrorOutline as ErrorOutlineIcon } from '@mui/icons-material';
 import {
@@ -118,6 +119,7 @@ const createEmptySession = () => ({
         antenna_port: '',
         center_frequency: 0,
         auto_center_frequency: true,
+        bias_t: false,
     },
     tasks: [],
 });
@@ -223,6 +225,8 @@ export default function MonitoredSatelliteDialog() {
     const [transmitterMenuAnchor, setTransmitterMenuAnchor] = useState(null);
     const [pendingRemoveSessionIndex, setPendingRemoveSessionIndex] = useState(null);
     const [openRemoveSessionConfirm, setOpenRemoveSessionConfirm] = useState(false);
+    const sdrParamsForSelected = formData.sdr.id ? sdrParameters?.[formData.sdr.id] : null;
+    const biasTSupported = Boolean(sdrParamsForSelected?.has_bias_t || sdrParamsForSelected?.capabilities?.bias_t?.supported);
 
     const selectedSatellite = groupOfSats.find(sat => sat.norad_id === selectedSatelliteId);
     const availableTransmitters = selectedSatellite?.transmitters || [];
@@ -366,6 +370,7 @@ export default function MonitoredSatelliteDialog() {
                 sdr: {
                     ...session.sdr,
                     auto_center_frequency: session.sdr?.auto_center_frequency ?? true,
+                    bias_t: session.sdr?.bias_t ?? false,
                 },
                 tasks: session.tasks || [],
             }));
@@ -1274,6 +1279,35 @@ export default function MonitoredSatelliteDialog() {
                                     )) || []}
                                 </Select>
                             </FormControl>
+
+                            {biasTSupported && (
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={Boolean(formData.sdr.bias_t)}
+                                            onChange={(e) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    sdr: {
+                                                        ...prev.sdr,
+                                                        bias_t: e.target.checked,
+                                                    },
+                                                }))
+                                            }
+                                            disabled={!formData.sdr.id || sdrParametersLoading}
+                                            size="small"
+                                        />
+                                    }
+                                    label={
+                                        <Box>
+                                            <Typography variant="body2">Enable Bias-T</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Turns Bias-T on during the observation; it will be switched off at the end.
+                                            </Typography>
+                                        </Box>
+                                    }
+                                />
+                            )}
 
                             <Box>
                                 <FormControlLabel

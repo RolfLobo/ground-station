@@ -634,6 +634,27 @@ class ObservationExecutor:
             sdr_id = session_tracker.get_session_sdr(session_id)
 
         if sdr_id:
+            try:
+                session_config = session_service.get_session_config(session_id)
+                if session_config and session_config.get("bias_t"):
+                    bias_off_config = {**session_config, "bias_t": False}
+                    await self.process_manager.update_configuration(sdr_id, bias_off_config)
+                    session_config["bias_t"] = False
+                    logger.info(
+                        "Disabled Bias-T before detaching SDR %s for observation %s (%s)",
+                        sdr_id,
+                        observation_id,
+                        session_key,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Failed to disable Bias-T for SDR %s before cleanup of observation %s (%s): %s",
+                    sdr_id,
+                    observation_id,
+                    session_key,
+                    e,
+                )
+
             tasks = session.get("tasks", [])
             has_decoder_task = any(task.get("type") == "decoder" for task in tasks)
             has_audio_task = any(task.get("type") == "audio_recording" for task in tasks)

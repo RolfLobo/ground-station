@@ -48,6 +48,7 @@ import {
     ListItemText,
     Tabs,
     Tab,
+    Switch,
 } from '@mui/material';
 import {
     Add as AddIcon,
@@ -134,6 +135,7 @@ const createEmptySession = () => ({
         antenna_port: '',
         center_frequency: 0,
         auto_center_frequency: true,
+        bias_t: false,
     },
     tasks: [],
 });
@@ -255,6 +257,8 @@ const ObservationFormDialog = () => {
     const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
     const [openCancelConfirm, setOpenCancelConfirm] = useState(false);
     const [transmitterMenuAnchor, setTransmitterMenuAnchor] = useState(null);
+    const sdrParamsForSelected = formData.sdr.id ? sdrParameters?.[formData.sdr.id] : null;
+    const biasTSupported = Boolean(sdrParamsForSelected?.has_bias_t || sdrParamsForSelected?.capabilities?.bias_t?.supported);
 
     // Determine if form should be disabled based on observation status
     const isFormDisabled = selectedObservation && 
@@ -401,6 +405,7 @@ const ObservationFormDialog = () => {
                 sdr: {
                     ...session.sdr,
                     auto_center_frequency: session.sdr?.auto_center_frequency ?? true,
+                    bias_t: session.sdr?.bias_t ?? false,
                 },
                 tasks: session.tasks || [],
             }));
@@ -1408,6 +1413,35 @@ const ObservationFormDialog = () => {
                                     )) || []}
                                 </Select>
                             </FormControl>
+
+                            {biasTSupported && (
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={Boolean(formData.sdr.bias_t)}
+                                            onChange={(e) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    sdr: {
+                                                        ...prev.sdr,
+                                                        bias_t: e.target.checked,
+                                                    },
+                                                }))
+                                            }
+                                            disabled={isFormDisabled || !formData.sdr.id || sdrParametersLoading}
+                                            size="small"
+                                        />
+                                    }
+                                    label={
+                                        <Box>
+                                            <Typography variant="body2">Enable Bias-T</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                Turns Bias-T on during the observation; it will be switched off at the end.
+                                            </Typography>
+                                        </Box>
+                                    }
+                                />
+                            )}
 
                             <Box>
                                 <FormControlLabel
