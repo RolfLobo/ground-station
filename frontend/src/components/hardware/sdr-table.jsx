@@ -63,6 +63,7 @@ import Paper from "@mui/material/Paper";
 import MemoryIcon from '@mui/icons-material/Memory';
 import DnsIcon from '@mui/icons-material/Dns';
 import {toRowSelectionModel, toSelectedIds} from '../../utils/datagrid-selection.js';
+import SelectionActionBar from './selection-action-bar.jsx';
 
 // SDR type field configurations with default values
 const sdrTypeFields = {
@@ -169,6 +170,8 @@ export default function SDRsPage() {
     const [selected, setSelected] = useState([]);
     const [pageSize, setPageSize] = useState(10);
     const [selectedRtlDevice, setSelectedRtlDevice] = useState('');
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [discovering, setDiscovering] = useState(false);
     const hasInitialized = useRef(false);
     const rtlProbeRequested = useRef(false);
     const { t } = useTranslation('hardware');
@@ -191,6 +194,8 @@ export default function SDRsPage() {
     const rowSelectionModel = useMemo(() => toRowSelectionModel(selected), [selected]);
     const isEditing = Boolean(formValues.id);
     const isDialogLoading = loading || loadingLocalSDRs || loadingLocalRtlSDRs;
+    const requiresDeleteConfirmationText = selected.length > 1;
+    const canConfirmDelete = !requiresDeleteConfirmationText || deleteConfirmText.trim() === 'DELETE';
 
     useEffect(() => {
         if (!hasInitialized.current) {
@@ -947,17 +952,74 @@ export default function SDRsPage() {
                             },
                         }}
                     />
+                    <SelectionActionBar
+                        selectedCount={selected.length}
+                        onClearSelection={() => setSelected([])}
+                        primaryActions={
+                            <>
+                                <Button
+                                    variant="contained"
+                                    onClick={() => {
+                                        dispatch(resetFormValues());
+                                        dispatch(setSelectedSdrDevice(''));
+                                        dispatch(setOpenAddDialog(true));
+                                    }}
+                                    disabled={loading}
+                                >
+                                    {t('sdr.add')}
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={selected.length !== 1 || loading}
+                                    onClick={() => {
+                                        const selectedRow = sdrs.find(row => row.id === selected[0]);
+                                        if (selectedRow) {
+                                            dispatch(setFormValues(selectedRow));
+                                            dispatch(setOpenAddDialog(true));
+                                        }
+                                    }}
+                                >
+                                    {t('sdr.edit')}
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={selected.length < 1 || loading}
+                                    color="error"
+                                    onClick={() => {
+                                        setDeleteConfirmText('');
+                                        dispatch(setOpenDeleteConfirm(true));
+                                    }}
+                                >
+                                    {t('sdr.delete')}
+                                </Button>
+                            </>
+                        }
+                        secondaryActions={
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                disabled={discovering || loading}
+                                onClick={async () => {
+                                    if (!socket) return;
+                                    setDiscovering(true);
+                                    try {
+                                        await dispatch(startSoapySDRDiscovery({ socket })).unwrap();
+                                        toast.success(t('sdr.discovery_started', 'SoapySDR discovery started'));
+                                    } catch (error) {
+                                        console.error('Failed to start SoapySDR discovery:', error);
+                                        toast.error(t('sdr.discovery_failed', 'Failed to start SoapySDR discovery'));
+                                    } finally {
+                                        setDiscovering(false);
+                                    }
+                                }}
+                            >
+                                {discovering
+                                    ? t('sdr.discovering_servers', 'Discovering...')
+                                    : t('sdr.discover_servers', 'Discover SoapySDR Servers')}
+                            </Button>
+                        }
+                    />
                     <Stack direction="row" spacing={2} style={{marginTop: 15}}>
-                        <Button
-                            variant="contained"
-                            onClick={() => {
-                                dispatch(resetFormValues());
-                                dispatch(setSelectedSdrDevice(''));
-                                dispatch(setOpenAddDialog(true));
-                            }}
-                        >
-                            {t('sdr.add')}
-                        </Button>
                         <Dialog
                             fullWidth={true}
                             open={openAddDialog}
@@ -1023,51 +1085,18 @@ export default function SDRsPage() {
                                     color="success"
                                     variant="contained"
                                     onClick={handleSubmit}
-                                    disabled={hasValidationErrors}
+                                    disabled={hasValidationErrors || loading}
                                 >
                                     {t('sdr.submit')}
                                 </Button>
                             </DialogActions>
                         </Dialog>
-                        <Button
-                            variant="contained"
-                            disabled={selected.length !== 1}
-                            onClick={() => {
-                                const selectedRow = sdrs.find(row => row.id === selected[0]);
-                                if (selectedRow) {
-                                    dispatch(setFormValues(selectedRow));
-                                    dispatch(setOpenAddDialog(true));
-                                }
-                            }}
-                        >
-                            {t('sdr.edit')}
-                        </Button>
-                        <Button
-                            variant="contained"
-                            disabled={selected.length < 1}
-                            color="error"
-                            onClick={() => dispatch(setOpenDeleteConfirm(true))}
-                        >
-                            {t('sdr.delete')}
-                        </Button>
-                        <Box sx={{ flexGrow: 1 }} />
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={() => {
-                                if (!socket) return;
-                                dispatch(startSoapySDRDiscovery({ socket }))
-                                    .unwrap()
-                                    .catch((error) => {
-                                        console.error('Failed to start SoapySDR discovery:', error);
-                                    });
-                            }}
-                        >
-                            {t('sdr.discover_servers', 'Discover SoapySDR Servers')}
-                        </Button>
                         <Dialog
                             open={openDeleteConfirm}
-                            onClose={() => dispatch(setOpenDeleteConfirm(false))}
+                            onClose={() => {
+                                setDeleteConfirmText('');
+                                dispatch(setOpenDeleteConfirm(false));
+                            }}
                             maxWidth="sm"
                             fullWidth
                             PaperProps={{
@@ -1115,6 +1144,16 @@ export default function SDRsPage() {
                                 <Typography variant="body2" sx={{ mb: 2, fontWeight: 600, color: 'text.secondary' }}>
                                     {selected.length === 1 ? 'SDR to be deleted:' : `${selected.length} SDRs to be deleted:`}
                                 </Typography>
+                                {requiresDeleteConfirmationText && (
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        label={t('common.type_delete_to_confirm', 'Type DELETE to confirm')}
+                                        value={deleteConfirmText}
+                                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                        sx={{ mb: 2 }}
+                                    />
+                                )}
                                 <Box sx={{
                                     maxHeight: 300,
                                     overflowY: 'auto',
@@ -1203,6 +1242,7 @@ export default function SDRsPage() {
                                     variant="contained"
                                     onClick={handleDelete}
                                     color="error"
+                                    disabled={!canConfirmDelete || loading}
                                     sx={{
                                         minWidth: 100,
                                         textTransform: 'none',

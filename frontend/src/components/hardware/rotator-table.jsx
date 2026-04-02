@@ -44,6 +44,7 @@ import {
 } from './rotaror-slice.jsx';
 import Paper from "@mui/material/Paper";
 import {toRowSelectionModel, toSelectedIds} from '../../utils/datagrid-selection.js';
+import SelectionActionBar from './selection-action-bar.jsx';
 
 
 export default function AntennaRotatorTable() {
@@ -51,6 +52,7 @@ export default function AntennaRotatorTable() {
     const dispatch = useDispatch();
     const [selected, setSelected] = useState([]);
     const [pageSize, setPageSize] = useState(10);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const { t } = useTranslation('hardware');
     const {
         loading,
@@ -63,6 +65,8 @@ export default function AntennaRotatorTable() {
     } = useSelector((state) => state.rotators);
     const rowSelectionModel = useMemo(() => toRowSelectionModel(selected), [selected]);
     const isEditing = Boolean(formValues.id);
+    const requiresDeleteConfirmationText = selected.length > 1;
+    const canConfirmDelete = !requiresDeleteConfirmationText || deleteConfirmText.trim() === 'DELETE';
 
     const columns = [
         {field: 'name', headerName: t('rotator.name'), flex: 1, minWidth: 150},
@@ -238,16 +242,49 @@ export default function AntennaRotatorTable() {
                             },
                         }}
                     />
+                    <SelectionActionBar
+                        selectedCount={selected.length}
+                        onClearSelection={() => setSelected([])}
+                        primaryActions={
+                            <>
+                                <Button
+                                    variant="contained"
+                                    onClick={() => {
+                                        dispatch(resetFormValues());
+                                        dispatch(setOpenAddDialog(true));
+                                    }}
+                                    disabled={loading}
+                                >
+                                    {t('rotator.add')}
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={selected.length !== 1 || loading}
+                                    onClick={() => {
+                                        const selectedRow = rotators.find(row => row.id === selected[0]);
+                                        if (selectedRow) {
+                                            dispatch(setFormValues(selectedRow));
+                                            dispatch(setOpenAddDialog(true));
+                                        }
+                                    }}
+                                >
+                                    {t('rotator.edit')}
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={selected.length < 1 || loading}
+                                    color="error"
+                                    onClick={() => {
+                                        setDeleteConfirmText('');
+                                        dispatch(setOpenDeleteConfirm(true));
+                                    }}
+                                >
+                                    {t('rotator.delete')}
+                                </Button>
+                            </>
+                        }
+                    />
                     <Stack direction="row" spacing={2} style={{marginTop: 15}}>
-                        <Button
-                            variant="contained"
-                            onClick={() => {
-                                dispatch(resetFormValues());
-                                dispatch(setOpenAddDialog(true));
-                            }}
-                        >
-                            {t('rotator.add')}
-                        </Button>
                         <Dialog
                             fullWidth={true}
                             open={openAddDialog}
@@ -459,36 +496,18 @@ export default function AntennaRotatorTable() {
                                     color="success"
                                     variant="contained"
                                     onClick={handleSubmit}
-                                    disabled={hasValidationErrors}
+                                    disabled={hasValidationErrors || loading}
                                 >
                                     {t('rotator.submit')}
                                 </Button>
                             </DialogActions>
                         </Dialog>
-                        <Button
-                            variant="contained"
-                            disabled={selected.length !== 1}
-                            onClick={() => {
-                                const selectedRow = rotators.find(row => row.id === selected[0]);
-                                if (selectedRow) {
-                                    dispatch(setFormValues(selectedRow));
-                                    dispatch(setOpenAddDialog(true));
-                                }
-                            }}
-                        >
-                            {t('rotator.edit')}
-                        </Button>
-                        <Button
-                            variant="contained"
-                            disabled={selected.length < 1}
-                            color="error"
-                            onClick={() => dispatch(setOpenDeleteConfirm(true))}
-                        >
-                            {t('rotator.delete')}
-                        </Button>
                         <Dialog
                             open={openDeleteConfirm}
-                            onClose={() => dispatch(setOpenDeleteConfirm(false))}
+                            onClose={() => {
+                                setDeleteConfirmText('');
+                                dispatch(setOpenDeleteConfirm(false));
+                            }}
                             maxWidth="sm"
                             fullWidth
                             PaperProps={{
@@ -536,6 +555,16 @@ export default function AntennaRotatorTable() {
                                 <Typography variant="body2" sx={{ mb: 2, fontWeight: 600, color: 'text.secondary' }}>
                                     {selected.length === 1 ? 'Rotator to be deleted:' : `${selected.length} Rotators to be deleted:`}
                                 </Typography>
+                                {requiresDeleteConfirmationText && (
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        label={t('common.type_delete_to_confirm', 'Type DELETE to confirm')}
+                                        value={deleteConfirmText}
+                                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                        sx={{ mb: 2 }}
+                                    />
+                                )}
                                 <Box sx={{
                                     maxHeight: 300,
                                     overflowY: 'auto',
@@ -609,6 +638,7 @@ export default function AntennaRotatorTable() {
                                     variant="contained"
                                     onClick={handleDelete}
                                     color="error"
+                                    disabled={!canConfirmDelete || loading}
                                     sx={{
                                         minWidth: 100,
                                         textTransform: 'none',

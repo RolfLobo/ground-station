@@ -53,13 +53,17 @@ import { toast } from '../../utils/toast-with-timestamp.jsx';
 import {DataGrid, gridClasses} from "@mui/x-data-grid";
 import Paper from "@mui/material/Paper";
 import {toRowSelectionModel, toSelectedIds} from '../../utils/datagrid-selection.js';
+import SelectionActionBar from './selection-action-bar.jsx';
 
 
 export default function RigTable() {
     const dispatch = useDispatch();
     const {socket} = useSocket();
+    const [deleteConfirmText, setDeleteConfirmText] = React.useState('');
     const {rigs, loading, selected, openDeleteConfirm, formValues, openAddDialog} = useSelector((state) => state.rigs);
     const rowSelectionModel = React.useMemo(() => toRowSelectionModel(selected), [selected]);
+    const requiresDeleteConfirmationText = selected.length > 1;
+    const canConfirmDelete = !requiresDeleteConfirmationText || deleteConfirmText.trim() === 'DELETE';
     const { t } = useTranslation('hardware');
     const isEditing = Boolean(formValues.id);
 
@@ -220,31 +224,48 @@ export default function RigTable() {
                             },
                         }}
                     />
-                    <Stack direction="row" spacing={2} style={{marginTop: 15}}>
-                        <Button variant="contained" onClick={() => {
-                            dispatch(setFormValues(defaultRig));
-                            dispatch(setOpenAddDialog(true));
-                        }}>
-                            {t('rig.add')}
-                        </Button>
-                        <Button variant="contained" disabled={selected.length !== 1} onClick={() => {
-                            const rigToEdit = rigs.find((rig) => rig.id === selected[0]);
-                            if (rigToEdit) {
-                                dispatch(setFormValues(rigToEdit));
-                                dispatch(setOpenAddDialog(true));
-                            }
-                        }}>
-                            {t('rig.edit')}
-                        </Button>
-                        <Button
-                            variant="contained"
-                            disabled={selected.length < 1}
-                            color="error"
-                            onClick={() => dispatch(setOpenDeleteConfirm(true))}
-                        >
-                            {t('rig.delete')}
-                        </Button>
-                    </Stack>
+                    <SelectionActionBar
+                        selectedCount={selected.length}
+                        onClearSelection={() => dispatch(setSelected([]))}
+                        primaryActions={
+                            <>
+                                <Button
+                                    variant="contained"
+                                    onClick={() => {
+                                        dispatch(setFormValues(defaultRig));
+                                        dispatch(setOpenAddDialog(true));
+                                    }}
+                                    disabled={loading}
+                                >
+                                    {t('rig.add')}
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={selected.length !== 1 || loading}
+                                    onClick={() => {
+                                        const selectedRow = rigs.find(row => row.id === selected[0]);
+                                        if (selectedRow) {
+                                            dispatch(setFormValues(selectedRow));
+                                            dispatch(setOpenAddDialog(true));
+                                        }
+                                    }}
+                                >
+                                    {t('rig.edit')}
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={selected.length < 1 || loading}
+                                    color="error"
+                                    onClick={() => {
+                                        setDeleteConfirmText('');
+                                        dispatch(setOpenDeleteConfirm(true));
+                                    }}
+                                >
+                                    {t('rig.delete')}
+                                </Button>
+                            </>
+                        }
+                    />
                     <Dialog
                         open={openAddDialog}
                         onClose={() => dispatch(setOpenAddDialog(false))}
@@ -344,18 +365,20 @@ export default function RigTable() {
                                     </Select>
                                     <FormHelperText>{t(txControlModeHelpKey)}</FormHelperText>
                                 </FormControl>
-                                <TextField
-                                    name="retune_interval_ms"
-                                    label={t('rig.retune_interval_ms')}
-                                    type="number"
-                                    fullWidth
-                                    size="small"
-                                    value={formValues.retune_interval_ms ?? 2000}
-                                    onChange={handleChange}
-                                    error={Boolean(validationErrors.retune_interval_ms)}
-                                    required
-                                />
-                                <FormHelperText>{t('rig.retune_interval_help')}</FormHelperText>
+                                <Box>
+                                    <TextField
+                                        name="retune_interval_ms"
+                                        label={t('rig.retune_interval_ms')}
+                                        type="number"
+                                        fullWidth
+                                        size="small"
+                                        value={formValues.retune_interval_ms ?? 2000}
+                                        onChange={handleChange}
+                                        error={Boolean(validationErrors.retune_interval_ms)}
+                                        required
+                                    />
+                                    <FormHelperText sx={{ mt: 0.5 }}>{t('rig.retune_interval_help')}</FormHelperText>
+                                </Box>
                             </Stack>
                         </DialogContent>
                         <DialogActions
@@ -380,14 +403,17 @@ export default function RigTable() {
                             >
                                 {t('rig.cancel')}
                             </Button>
-                            <Button onClick={() => handleFormSubmit()} color="success" variant="contained" disabled={hasValidationErrors}>
+                            <Button onClick={() => handleFormSubmit()} color="success" variant="contained" disabled={hasValidationErrors || loading}>
                                 {t('rig.submit')}
                             </Button>
                         </DialogActions>
                     </Dialog>
                     <Dialog
                         open={openDeleteConfirm}
-                        onClose={() => dispatch(setOpenDeleteConfirm(false))}
+                        onClose={() => {
+                            setDeleteConfirmText('');
+                            dispatch(setOpenDeleteConfirm(false));
+                        }}
                         maxWidth="sm"
                         fullWidth
                         PaperProps={{
@@ -435,6 +461,16 @@ export default function RigTable() {
                             <Typography variant="body2" sx={{ mb: 2, fontWeight: 600, color: 'text.secondary' }}>
                                 {selected.length === 1 ? 'Rig to be deleted:' : `${selected.length} Rigs to be deleted:`}
                             </Typography>
+                            {requiresDeleteConfirmationText && (
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label={t('common.type_delete_to_confirm', 'Type DELETE to confirm')}
+                                    value={deleteConfirmText}
+                                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                    sx={{ mb: 2 }}
+                                />
+                            )}
                             <Box sx={{
                                 maxHeight: 300,
                                 overflowY: 'auto',
@@ -511,6 +547,7 @@ export default function RigTable() {
                                     handleDelete();
                                 }}
                                 color="error"
+                                disabled={!canConfirmDelete || loading}
                                 sx={{
                                     minWidth: 100,
                                     textTransform: 'none',
