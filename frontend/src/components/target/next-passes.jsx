@@ -96,7 +96,7 @@ const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
             }),
         },
     },
-    '& .passes-row-upcoming-soon': {
+    '& .passes-row-upcoming': {
         backgroundColor: alpha(theme.palette.warning.main, 0.14),
         borderLeftColor: alpha(theme.palette.warning.main, 0.9),
         ...theme.applyStyles('light', {
@@ -437,7 +437,7 @@ const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
             if (status === 'passed') return 'passes-row-passed pointer-cursor';
             if (status === 'live') return 'passes-row-live pointer-cursor';
             if (status === 'upcoming') {
-                return 'passes-row-upcoming-soon pointer-cursor';
+                return 'passes-row-upcoming pointer-cursor';
             }
             return "pointer-cursor";
         }
