@@ -47,6 +47,7 @@ import {
     CheckCircle as EnableIcon,
     Cancel as DisableIcon,
 } from '@mui/icons-material';
+import { alpha } from '@mui/material/styles';
 import { useSocket } from '../common/socket.jsx';
 import {
     setSelectedMonitoredSatellite,
@@ -403,14 +404,26 @@ const MonitoredSatellitesTable = () => {
                     }}
                     sx={{
                         border: 0,
-                        backgroundColor: 'background.paper',
-                        [`& .${gridClasses.cell}:focus-visible, & .${gridClasses.cell}:focus-within`]: {
-                            outline: (theme) => `2px solid ${theme.palette.primary.main}`,
-                            outlineOffset: '-2px',
+                        [`& .${gridClasses.cell}:focus, & .${gridClasses.cell}:focus-within`]: {
+                            outline: 'none',
                         },
-                        [`& .${gridClasses.columnHeader}:focus-visible, & .${gridClasses.columnHeader}:focus-within`]: {
-                            outline: (theme) => `2px solid ${theme.palette.primary.main}`,
-                            outlineOffset: '-2px',
+                        [`& .${gridClasses.columnHeader}:focus, & .${gridClasses.columnHeader}:focus-within`]: {
+                            outline: 'none',
+                        },
+                        '& .MuiDataGrid-columnHeaders': {
+                            backgroundColor: (theme) => alpha(
+                                theme.palette.primary.main,
+                                theme.palette.mode === 'dark' ? 0.18 : 0.10
+                            ),
+                            borderBottom: (theme) => `2px solid ${alpha(theme.palette.primary.main, 0.45)}`,
+                        },
+                        '& .MuiDataGrid-columnHeader': {
+                            backgroundColor: 'transparent',
+                        },
+                        '& .MuiDataGrid-columnHeaderTitle': {
+                            fontSize: '0.8125rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.02em',
                         },
                         '& .MuiDataGrid-overlay': {
                             fontSize: '0.875rem',
