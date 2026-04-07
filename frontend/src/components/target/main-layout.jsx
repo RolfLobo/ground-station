@@ -70,6 +70,7 @@ export let handleSetGridEditableTarget = function () {
 };
 
 export const gridLayoutStoreName = 'target-sat-track-layouts';
+const SHARED_RESIZE_HANDLES = ['s', 'sw', 'w', 'se', 'nw', 'ne'];
 
 // -------------------------------------------------
 // Leaflet icon path fix for React
@@ -93,6 +94,24 @@ function loadLayoutsFromLocalStorage() {
 
 function saveLayoutsToLocalStorage(layouts) {
     localStorage.setItem(gridLayoutStoreName, JSON.stringify(layouts));
+}
+
+function normalizeLayoutsResizeHandles(layouts) {
+    if (!layouts || typeof layouts !== 'object') {
+        return layouts;
+    }
+
+    return Object.fromEntries(
+        Object.entries(layouts).map(([breakpoint, items]) => [
+            breakpoint,
+            Array.isArray(items)
+                ? items.map((item) => ({
+                    ...item,
+                    resizeHandles: [...SHARED_RESIZE_HANDLES],
+                }))
+                : items,
+        ]),
+    );
 }
 
 const MapSlider = function ({handleSliderChange}) {
@@ -401,12 +420,13 @@ const TargetSatelliteLayout = React.memo(function TargetSatelliteLayout() {
     // we load any stored layouts from localStorage or fallback to default
     const [layouts, setLayouts] = useState(() => {
         const loaded = loadLayoutsFromLocalStorage();
-        return loaded ?? defaultLayouts;
+        return normalizeLayoutsResizeHandles(loaded ?? defaultLayouts);
     });
 
     function handleLayoutsChange(currentLayout, allLayouts) {
-        setLayouts(allLayouts);
-        saveLayoutsToLocalStorage(allLayouts);
+        const normalizedLayouts = normalizeLayoutsResizeHandles(allLayouts);
+        setLayouts(normalizedLayouts);
+        saveLayoutsToLocalStorage(normalizedLayouts);
     }
 
     useEffect(() => {

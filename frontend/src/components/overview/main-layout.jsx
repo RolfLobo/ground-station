@@ -107,6 +107,7 @@ export let handleSetGridEditableOverview = function () {
 };
 
 export const gridLayoutStoreName = 'global-sat-track-layouts';
+const SHARED_RESIZE_HANDLES = ['s', 'sw', 'w', 'se', 'nw', 'ne'];
 
 
 // load / save layouts from localStorage
@@ -121,6 +122,24 @@ function loadLayoutsFromLocalStorage() {
 
 function saveLayoutsToLocalStorage(layouts) {
     localStorage.setItem(gridLayoutStoreName, JSON.stringify(layouts));
+}
+
+function normalizeLayoutsResizeHandles(layouts) {
+    if (!layouts || typeof layouts !== 'object') {
+        return layouts;
+    }
+
+    return Object.fromEntries(
+        Object.entries(layouts).map(([breakpoint, items]) => [
+            breakpoint,
+            Array.isArray(items)
+                ? items.map((item) => ({
+                    ...item,
+                    resizeHandles: [...SHARED_RESIZE_HANDLES],
+                }))
+                : items,
+        ]),
+    );
 }
 
 const ThemedDiv = styled('div')(({theme}) => ({
@@ -344,7 +363,7 @@ const GlobalSatelliteTrackLayout = React.memo(function GlobalSatelliteTrackLayou
     // we load any stored layouts from localStorage or fallback to default
     const [layouts, setLayouts] = useState(() => {
         const loaded = loadLayoutsFromLocalStorage();
-        return loaded ?? defaultLayouts;
+        return normalizeLayoutsResizeHandles(loaded ?? defaultLayouts);
     });
 
     const handleSetTrackingOnBackend = (noradId) => {
@@ -369,8 +388,9 @@ const GlobalSatelliteTrackLayout = React.memo(function GlobalSatelliteTrackLayou
     };
 
     function handleLayoutsChange(currentLayout, allLayouts) {
-        setLayouts(allLayouts);
-        saveLayoutsToLocalStorage(allLayouts);
+        const normalizedLayouts = normalizeLayoutsResizeHandles(allLayouts);
+        setLayouts(normalizedLayouts);
+        saveLayoutsToLocalStorage(normalizedLayouts);
         window.dispatchEvent(new Event('overview-map-layout-change'));
     }
 
