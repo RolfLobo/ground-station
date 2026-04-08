@@ -797,6 +797,7 @@ const targetSatTrackSlice = createSlice({
             }
 
             if (statusValue === TRACKER_COMMAND_STATUS.SUBMITTED) {
+                const submittedAt = Date.now();
                 state.trackerCommand = {
                     commandId: status.command_id,
                     scope: status.scope || TRACKER_COMMAND_SCOPES.TRACKING,
@@ -806,7 +807,10 @@ const targetSatTrackSlice = createSlice({
                         rotatorState: status.requested_state?.rotator_state ?? state.trackerCommand?.requestedState?.rotatorState ?? null,
                         rigState: status.requested_state?.rig_state ?? state.trackerCommand?.requestedState?.rigState ?? null,
                     },
-                    updatedAt: Date.now(),
+                    submittedAt,
+                    startedAt: null,
+                    finishedAt: null,
+                    updatedAt: submittedAt,
                 };
                 return;
             }
@@ -817,7 +821,9 @@ const targetSatTrackSlice = createSlice({
 
             if (statusValue === TRACKER_COMMAND_STATUS.STARTED) {
                 state.trackerCommand.status = TRACKER_COMMAND_STATUS.STARTED;
-                state.trackerCommand.updatedAt = Date.now();
+                const startedAt = Date.now();
+                state.trackerCommand.startedAt = startedAt;
+                state.trackerCommand.updatedAt = startedAt;
                 return;
             }
 
@@ -827,7 +833,9 @@ const targetSatTrackSlice = createSlice({
             ) {
                 state.trackerCommand.status = statusValue;
                 state.trackerCommand.reason = status.reason || null;
-                state.trackerCommand.updatedAt = Date.now();
+                const finishedAt = Date.now();
+                state.trackerCommand.finishedAt = finishedAt;
+                state.trackerCommand.updatedAt = finishedAt;
                 state.rotatorConnecting = false;
                 state.rotatorDisconnecting = false;
                 return;
@@ -844,13 +852,17 @@ const targetSatTrackSlice = createSlice({
                 state.loading = false;
                 state.trackingState = action.payload?.trackingState || state.trackingState;
                 if (action.payload?.commandId) {
+                    const submittedAt = Date.now();
                     state.trackerCommand = {
                         commandId: action.payload.commandId,
                         scope: action.payload.commandScope || TRACKER_COMMAND_SCOPES.TRACKING,
                         status: TRACKER_COMMAND_STATUS.SUBMITTED,
                         reason: null,
                         requestedState: action.payload.requestedState || null,
-                        updatedAt: Date.now(),
+                        submittedAt,
+                        startedAt: null,
+                        finishedAt: null,
+                        updatedAt: submittedAt,
                     };
                 }
                 state.error = null;
