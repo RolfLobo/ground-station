@@ -26,6 +26,7 @@ const FrequencyBandOverlay = ({
                                   sampleRate,
                                   containerWidth,
                                   transformTick = 0,
+                                  interactionActive = false,
                                   height,
                                   topPadding = 0,
                                   bands = [],
@@ -45,11 +46,13 @@ const FrequencyBandOverlay = ({
 
     const updateActualWidth = useCallback(() => {
         const rect = bandContainerRef.current?.getBoundingClientRect();
-        if (rect && Math.abs(rect.width - lastMeasuredWidthRef.current) > 1) {
-            if (rect.width > 0) {
-                lastMeasuredWidthRef.current = rect.width;
-                setActualWidth(rect.width);
-            }
+        if (!rect) return;
+
+        const roundedWidth = Math.round(rect.width);
+        // Quantize width updates to avoid subpixel jitter churn.
+        if (roundedWidth > 0 && roundedWidth !== lastMeasuredWidthRef.current) {
+            lastMeasuredWidthRef.current = roundedWidth;
+            setActualWidth(roundedWidth);
         }
     }, []);
 
@@ -112,8 +115,26 @@ const FrequencyBandOverlay = ({
 
     // Update width when layout or transform-driven width changes
     useEffect(() => {
+        if (interactionActive) {
+            return;
+        }
         updateActualWidth();
-    }, [containerWidth, transformTick, updateActualWidth]);
+    }, [containerWidth, transformTick, interactionActive, updateActualWidth]);
+
+    // Resize backing store only when dimensions actually change.
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const targetWidth = Math.max(1, actualWidth);
+        const targetHeight = Math.max(1, height);
+        if (canvas.width !== targetWidth) {
+            canvas.width = targetWidth;
+        }
+        if (canvas.height !== targetHeight) {
+            canvas.height = targetHeight;
+        }
+    }, [actualWidth, height]);
 
     // Draw the frequency bands
     useEffect(() => {
@@ -123,10 +144,6 @@ const FrequencyBandOverlay = ({
         const ctx = canvas.getContext('2d', {
             willReadFrequently: true,
         });
-
-        // Set canvas width based on actual measured width
-        canvas.width = actualWidth;
-        canvas.height = height;
 
         // Clear the canvas
         ctx.clearRect(0, 0, canvas.width, height);

@@ -32,6 +32,7 @@ import FrequencyBandOverlay from './bandplan-overlay.jsx';
 import {useDopplerNeighbors} from '../../hooks/useDopplerNeighbors.jsx';
 
 const PLAYBACK_COUNTDOWN_UPDATE_MS = 250;
+const INTERACTION_IDLE_MS = 120;
 
 const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
                                               bandscopeCanvasRef,
@@ -60,6 +61,8 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
     const pinchCenterXRef = useRef(0);
     const persistTimerRef = useRef(null);
     const bookmarkMeasureRafRef = useRef(null);
+    const interactionIdleTimerRef = useRef(null);
+    const interactionActiveRef = useRef(false);
     const dispatch = useDispatch();
 
     // Activate doppler neighbor calculation hook
@@ -89,6 +92,7 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
     // Track playback countdown for display
     const [playbackCountdown, setPlaybackCountdown] = useState(0);
     const [bookmarkTransformTick, setBookmarkTransformTick] = useState(0);
+    const [isTransformInteracting, setIsTransformInteracting] = useState(false);
 
     // Update playback countdown from ref
     useEffect(() => {
@@ -195,6 +199,23 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
         });
     }, []);
 
+    const markTransformInteraction = useCallback(() => {
+        if (!interactionActiveRef.current) {
+            interactionActiveRef.current = true;
+            setIsTransformInteracting(true);
+        }
+
+        if (interactionIdleTimerRef.current) {
+            clearTimeout(interactionIdleTimerRef.current);
+        }
+
+        interactionIdleTimerRef.current = setTimeout(() => {
+            interactionIdleTimerRef.current = null;
+            interactionActiveRef.current = false;
+            setIsTransformInteracting(false);
+        }, INTERACTION_IDLE_MS);
+    }, []);
+
     // Apply a transform directly to a DOM element
     const applyTransform = useCallback(() => {
         if (containerRef.current) {
@@ -238,6 +259,10 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
                 cancelAnimationFrame(bookmarkMeasureRafRef.current);
                 bookmarkMeasureRafRef.current = null;
             }
+            if (interactionIdleTimerRef.current) {
+                clearTimeout(interactionIdleTimerRef.current);
+                interactionIdleTimerRef.current = null;
+            }
         }
     }, []);
 
@@ -272,6 +297,7 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
         // Update refs
         scaleRef.current = newScale;
         positionXRef.current = newPositionX;
+        markTransformInteraction();
 
         // Apply the transform immediately
         applyTransform();
@@ -279,7 +305,7 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
         // Persist to Redux (debounced)
         persistToRedux();
 
-    }, [applyTransform, persistToRedux]);
+    }, [applyTransform, persistToRedux, markTransformInteraction]);
 
     // Panning functionality
     const panOnXAxisOnly = useCallback((deltaX) => {
@@ -299,10 +325,11 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
             maxPanLeft,
             Math.min(0, positionXRef.current + deltaX)
         );
+        markTransformInteraction();
 
         // Apply transform directly
         applyTransform();
-    }, [applyTransform]);
+    }, [applyTransform, markTransformInteraction]);
 
     // Reset to the default state
     const resetCustomTransform = useCallback(() => {
@@ -584,6 +611,7 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
                         sampleRate={sampleRate}
                         containerWidth={waterFallCanvasWidth}
                         transformTick={bookmarkTransformTick}
+                        interactionActive={isTransformInteracting}
                         height={bandScopeHeight + bandscopeTopPadding}
                         topPadding={bandscopeTopPadding}
                         onBookmarkClick={handleBookmarkClick}
@@ -594,6 +622,7 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
                         sampleRate={sampleRate}
                         containerWidth={waterFallCanvasWidth}
                         transformTick={bookmarkTransformTick}
+                        interactionActive={isTransformInteracting}
                         height={bandScopeHeight + bandscopeTopPadding}
                         topPadding={bandscopeTopPadding}
                         bands={frequencyBands}
@@ -608,6 +637,8 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
                         bandscopeHeight={bandScopeHeight}
                         bandscopeTopPadding={bandscopeTopPadding}
                         containerWidth={containerWidthRef.current}
+                        transformTick={bookmarkTransformTick}
+                        interactionActive={isTransformInteracting}
                         zoomScale={scaleRef.current}
                         currentPositionX={positionXRef.current}
                     />
@@ -618,6 +649,7 @@ const WaterfallAndBandscope = forwardRef(function WaterfallAndBandscope({
                     containerWidth={waterFallCanvasWidth}
                     sampleRate={sampleRate}
                     transformTick={bookmarkTransformTick}
+                    interactionActive={isTransformInteracting}
                 />
 
                 {waterfallRendererMode === 'dom-tiles' ? (

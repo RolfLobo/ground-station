@@ -22,7 +22,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useTheme } from '@mui/material';
 import {humanizeFrequency, preciseHumanizeFrequency} from "../common/common.jsx";
 
-const FrequencyScale = ({ centerFrequency, sampleRate, containerWidth, transformTick = 0, canvasHeight = 20 }) => {
+const FrequencyScale = ({ centerFrequency, sampleRate, containerWidth, transformTick = 0, interactionActive = false, canvasHeight = 20 }) => {
     const theme = useTheme();
     const canvasRef = useRef(null);
     const frequencyScaleContainerRef = useRef(null);
@@ -37,19 +37,36 @@ const FrequencyScale = ({ centerFrequency, sampleRate, containerWidth, transform
         // Get the actual client dimensions of the element
         const rect = frequencyScaleContainerRef.current?.getBoundingClientRect();
         if (!rect) return;
+        const roundedWidth = Math.round(rect.width);
 
-        // Only update if the width has changed significantly (avoid unnecessary redraws)
-        if (Math.abs(rect.width - lastMeasuredWidthRef.current) > 1) {
-            if (rect.width > 0) {
-                lastMeasuredWidthRef.current = rect.width;
-                setActualWidth(rect.width);
-            }
+        // Quantize width updates to avoid subpixel jitter churn.
+        if (roundedWidth > 0 && roundedWidth !== lastMeasuredWidthRef.current) {
+            lastMeasuredWidthRef.current = roundedWidth;
+            setActualWidth(roundedWidth);
         }
     }, []);
 
     useEffect(() => {
+        if (interactionActive) {
+            return;
+        }
         updateActualWidth();
-    }, [containerWidth, transformTick, updateActualWidth]);
+    }, [containerWidth, transformTick, interactionActive, updateActualWidth]);
+
+    // Resize backing store only when dimensions actually change.
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const targetWidth = Math.max(1, actualWidth);
+        const targetHeight = Math.max(1, canvasHeight);
+        if (canvas.width !== targetWidth) {
+            canvas.width = targetWidth;
+        }
+        if (canvas.height !== targetHeight) {
+            canvas.height = targetHeight;
+        }
+    }, [actualWidth, canvasHeight]);
 
     // Draw the frequency scale on the canvas
     useEffect(() => {
@@ -57,11 +74,7 @@ const FrequencyScale = ({ centerFrequency, sampleRate, containerWidth, transform
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d', { alpha: false });
-        const height = 20;
-
-        // Set canvas width based on actual measured width
-        canvas.width = actualWidth;
-        canvas.height = height;
+        const height = canvasHeight;
 
         // Clear the canvas
         ctx.fillStyle = theme.palette.background.paper;
@@ -204,7 +217,7 @@ const FrequencyScale = ({ centerFrequency, sampleRate, containerWidth, transform
             }
         }
 
-    }, [centerFrequency, sampleRate, actualWidth, theme.palette]);
+    }, [centerFrequency, sampleRate, actualWidth, canvasHeight, theme.palette]);
 
     return (
         <div
