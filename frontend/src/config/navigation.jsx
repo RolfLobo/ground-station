@@ -38,6 +38,7 @@ import FiberNewIcon from '@mui/icons-material/FiberNew';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 
@@ -246,21 +247,33 @@ const SchedulerIconWithStatus = () => {
     );
 };
 
-export const getNavigation = () => [
-    {
-        kind: 'header',
-        title: i18n.t('tracking', { ns: 'navigation' }),
-    },
-    {
-        segment: '',
-        title: i18n.t('birds_eye_view', { ns: 'navigation' }),
-        icon: <PublicIcon/>,
-    },
-    {
-        segment: 'track',
-        title: i18n.t('tracking_console', { ns: 'navigation' }),
-        icon: <GpsFixedIcon/>,
-    },
+export const getNavigation = ({ showCelestial = false } = {}) => {
+    const trackingSection = [
+        {
+            kind: 'header',
+            title: i18n.t('tracking', { ns: 'navigation' }),
+        },
+        {
+            segment: '',
+            title: i18n.t('birds_eye_view', { ns: 'navigation' }),
+            icon: <PublicIcon/>,
+        },
+        ...(showCelestial
+            ? [{
+                segment: 'celestial',
+                title: 'Celestial',
+                icon: <AutoAwesomeIcon />,
+            }]
+            : []),
+        {
+            segment: 'track',
+            title: i18n.t('tracking_console', { ns: 'navigation' }),
+            icon: <GpsFixedIcon/>,
+        },
+    ];
+
+    return [
+        ...trackingSection,
     {
         segment: 'waterfall',
         title: i18n.t('waterfall_view', { ns: 'navigation' }),
@@ -352,7 +365,8 @@ export const getNavigation = () => [
         title: i18n.t('about', { ns: 'navigation' }),
         icon: <InfoIcon/>,
     },
-];
+    ];
+};
 
 // Keep NAVIGATION for backward compatibility but make it dynamic
 export const NAVIGATION = getNavigation();

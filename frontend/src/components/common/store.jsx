@@ -48,6 +48,8 @@ import sessionsReducer from '../settings/sessions-slice.jsx';
 import transcriptionReducer from '../waterfall/transcription-slice.jsx';
 import schedulerReducer from '../scheduler/scheduler-slice.jsx';
 import tasksReducer from '../tasks/tasks-slice.jsx';
+import celestialReducer from '../celestial/celestial-slice.jsx';
+import celestialMonitoredReducer from '../celestial/monitored-slice.jsx';
 import backendSyncMiddleware from '../waterfall/vfo-marker/vfo-middleware.jsx';
 
 const storage = storageEngine?.default ?? storageEngine;
@@ -257,6 +259,19 @@ const tasksPersistConfig = {
     whitelist: []  // Don't persist tasks (they're ephemeral)
 };
 
+// Persist configuration for celestial slice
+const celestialPersistConfig = {
+    key: 'celestial',
+    storage,
+    whitelist: ['mapSettings']
+};
+
+const celestialMonitoredPersistConfig = {
+    key: 'celestialMonitored',
+    storage,
+    whitelist: ['selectedIds']
+};
+
 
 // Wrap reducers with persistReducer
 const persistedWaterfallReducer = persistReducer(waterfallPersistConfig, waterfallReducer);
@@ -284,6 +299,8 @@ const persistedSystemInfoReducer = persistReducer(systemInfoPersistConfig, syste
 const persistedTranscriptionReducer = persistReducer(transcriptionPersistConfig, transcriptionReducer);
 const persistedSchedulerReducer = persistReducer(schedulerPersistConfig, schedulerReducer);
 const persistedTasksReducer = persistReducer(tasksPersistConfig, tasksReducer);
+const persistedCelestialReducer = persistReducer(celestialPersistConfig, celestialReducer);
+const persistedCelestialMonitoredReducer = persistReducer(celestialMonitoredPersistConfig, celestialMonitoredReducer);
 
 
 export const store = configureStore({
@@ -314,6 +331,8 @@ export const store = configureStore({
         transcription: persistedTranscriptionReducer,
         scheduler: persistedSchedulerReducer,
         backgroundTasks: persistedTasksReducer,
+        celestial: persistedCelestialReducer,
+        celestialMonitored: persistedCelestialMonitoredReducer,
     },
     devTools: process.env.NODE_ENV !== "production",
     middleware: (getDefaultMiddleware) =>
