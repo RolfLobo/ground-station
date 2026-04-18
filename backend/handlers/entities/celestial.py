@@ -386,7 +386,8 @@ async def refresh_monitored_celestial_now(
                     f"Failed to persist monitored celestial refresh metadata: {update_result.get('error')}"
                 )
 
-        await sio.emit("celestial-tracks-update", tracks.get("data", {}))
+        if not selected_ids:
+            await sio.emit("celestial-tracks-update", tracks.get("data", {}))
         return cast(Dict[str, Any], tracks)
 
 

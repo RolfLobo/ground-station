@@ -289,7 +289,61 @@ const celestialSlice = createSlice({
             })
             .addCase(refreshMonitoredCelestialNow.fulfilled, (state, action) => {
                 state.tracksLoading = false;
-                state.celestialTracks = action.payload;
+                const requestedIds = action?.meta?.arg?.ids;
+                const isPartialRefresh = Array.isArray(requestedIds) && requestedIds.length > 0;
+                if (isPartialRefresh) {
+                    const payload = action.payload || {};
+                    const incomingRows = Array.isArray(payload?.celestial) ? payload.celestial : [];
+                    const currentTracks = state.celestialTracks ? { ...state.celestialTracks } : {};
+                    const existingRows = Array.isArray(currentTracks?.celestial)
+                        ? [...currentTracks.celestial]
+                        : [];
+                    const rowIndexByTargetKey = new Map();
+
+                    existingRows.forEach((item, index) => {
+                        const existingKey = String(item?.target_key || '').trim()
+                            || (() => {
+                                const type = String(item?.target_type || 'mission').toLowerCase();
+                                if (type === 'body') {
+                                    const bodyId = String(item?.body_id || item?.command || '').toLowerCase();
+                                    return bodyId ? `body:${bodyId}` : '';
+                                }
+                                const command = String(item?.command || '').trim();
+                                return command ? `mission:${command}` : '';
+                            })();
+                        if (existingKey) rowIndexByTargetKey.set(existingKey, index);
+                    });
+
+                    incomingRows.forEach((row) => {
+                        const targetKey = String(row?.target_key || '').trim()
+                            || (() => {
+                                const type = String(row?.target_type || 'mission').toLowerCase();
+                                if (type === 'body') {
+                                    const bodyId = String(row?.body_id || row?.command || '').toLowerCase();
+                                    return bodyId ? `body:${bodyId}` : '';
+                                }
+                                const command = String(row?.command || '').trim();
+                                return command ? `mission:${command}` : '';
+                            })();
+                        if (!targetKey) return;
+
+                        const existingIndex = rowIndexByTargetKey.get(targetKey);
+                        if (existingIndex !== undefined) {
+                            existingRows[existingIndex] = { ...existingRows[existingIndex], ...row };
+                        } else {
+                            rowIndexByTargetKey.set(targetKey, existingRows.length);
+                            existingRows.push(row);
+                        }
+                    });
+
+                    state.celestialTracks = {
+                        ...currentTracks,
+                        ...payload,
+                        celestial: existingRows,
+                    };
+                } else {
+                    state.celestialTracks = action.payload;
+                }
                 state.tracksProgress = null;
                 state.lastUpdated = new Date().toISOString();
             })
