@@ -581,7 +581,7 @@ const ObservationsTable = () => {
                 </Alert>
             )}
 
-            <Box sx={{ flexGrow: 1, width: '100%', minHeight: 0 }}>
+            <Box sx={{ flexGrow: 1, width: '100%', minHeight: 0, minWidth: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 <DataGrid
                     rows={observations}
                     columns={columns}
@@ -609,6 +609,14 @@ const ObservationsTable = () => {
                     }}
                     sx={{
                         border: 0,
+                        width: '100%',
+                        '& .MuiDataGrid-main': {
+                            overflowX: 'auto',
+                        },
+                        '& .MuiDataGrid-virtualScroller': {
+                            overflowX: 'auto',
+                            touchAction: 'pan-x pan-y',
+                        },
                         [`& .${gridClasses.cell}:focus, & .${gridClasses.cell}:focus-within`]: {
                             outline: 'none',
                         },

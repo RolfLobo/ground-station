@@ -384,7 +384,7 @@ const MonitoredSatellitesTable = () => {
                 Satellites in this list will automatically generate scheduled observations for all upcoming passes that meet the specified criteria (minimum elevation, lookahead window).
             </Alert>
 
-            <Box sx={{ width: '100%' }}>
+            <Box sx={{ width: '100%', minWidth: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 <DataGrid
                     autoHeight
                     rows={monitoredSatellites}
@@ -410,6 +410,14 @@ const MonitoredSatellitesTable = () => {
                     }}
                     sx={{
                         border: 0,
+                        width: '100%',
+                        '& .MuiDataGrid-main': {
+                            overflowX: 'auto',
+                        },
+                        '& .MuiDataGrid-virtualScroller': {
+                            overflowX: 'auto',
+                            touchAction: 'pan-x pan-y',
+                        },
                         [`& .${gridClasses.cell}:focus, & .${gridClasses.cell}:focus-within`]: {
                             outline: 'none',
                         },
