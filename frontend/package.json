@@ -64,7 +64,7 @@
     "socket.io-client": "^4.8.3",
     "suncalc": "^1.9.0",
     "ua-parser-js": "^2.0.9",
-    "uuid": "^13.0.0"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
