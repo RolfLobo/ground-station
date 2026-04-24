@@ -43,12 +43,6 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import { useSocket } from "../common/socket.jsx";
 import { useTranslation } from 'react-i18next';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import HorizontalRuleIcon from '@mui/icons-material/HorizontalRule';
-import GpsFixedIcon from '@mui/icons-material/GpsFixed';
-import GpsOffIcon from '@mui/icons-material/GpsOff';
 import StopIcon from '@mui/icons-material/Stop';
 import CloseIcon from '@mui/icons-material/Close';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
@@ -91,9 +85,7 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
     const {
         trackingState,
         trackerId,
-        satellitePasses,
         satelliteId,
-        satelliteData,
         selectedRadioRig,
         selectedTransmitter,
         rigData,
@@ -103,18 +95,9 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
     const schedulerObservations = useSelector((state) => state.scheduler?.observations || []);
     const rigRows = useSelector((state) => state.rigs?.rigs || []);
     const rotatorRows = useSelector((state) => state.rotators?.rotators || []);
-    const activeTrackerInstance = useMemo(
-        () => trackerInstances.find((instance) => instance.tracker_id === trackerId) || null,
-        [trackerInstances, trackerId]
-    );
-    const activeTargetNumber = activeTrackerInstance?.target_number
-        || (trackerInstances.findIndex((instance) => instance.tracker_id === trackerId) + 1)
-        || null;
 
-    const selectedSatellitePositions = useSelector(state => state.overviewSatTrack.selectedSatellitePositions);
     const trackerViews = useSelector((state) => state.targetSatTrack?.trackerViews || {});
     const { requestRotatorForTarget, dialog: rotatorSelectionDialog } = useTargetRotatorSelectionDialog();
-    const [countdown, setCountdown] = useState('');
     const [searchResetKey, setSearchResetKey] = useState(0);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [pendingDeleteTarget, setPendingDeleteTarget] = useState(null);
@@ -368,89 +351,6 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
         socket,
         trackingState,
     ]);
-
-    // Get current active pass or next upcoming pass
-    const passInfo = useMemo(() => {
-        if (!satellitePasses || satellitePasses.length === 0 || !satelliteId) return null;
-
-        const now = new Date();
-
-        // Find active pass
-        const activePass = satellitePasses.find(pass => {
-            if (pass.norad_id !== satelliteId) return false;
-            const start = new Date(pass.event_start);
-            const end = new Date(pass.event_end);
-            return now >= start && now <= end;
-        });
-
-        if (activePass) {
-            return { type: 'active', pass: activePass };
-        }
-
-        // Find next upcoming pass
-        let nextPass = null;
-        let earliestTime = null;
-
-        for (const pass of satellitePasses) {
-            if (pass.norad_id === satelliteId) {
-                const startTime = new Date(pass.event_start);
-                if (startTime > now) {
-                    if (!nextPass || startTime < earliestTime) {
-                        nextPass = pass;
-                        earliestTime = startTime;
-                    }
-                }
-            }
-        }
-
-        if (nextPass) {
-            return { type: 'upcoming', pass: nextPass };
-        }
-
-        return null;
-    }, [satellitePasses, satelliteId]);
-
-    // Update countdown every second
-    useEffect(() => {
-        if (!passInfo) {
-            setCountdown('');
-            return;
-        }
-
-        const updateCountdown = () => {
-            const now = new Date();
-            const targetTime = passInfo.type === 'active'
-                ? new Date(passInfo.pass.event_end)
-                : new Date(passInfo.pass.event_start);
-
-            const diff = targetTime - now;
-
-            if (diff <= 0) {
-                setCountdown('0s');
-                return;
-            }
-
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-            if (days > 0) {
-                setCountdown(`${days}d ${hours}h ${minutes}m`);
-            } else if (hours > 0) {
-                setCountdown(`${hours}h ${minutes}m ${seconds}s`);
-            } else if (minutes > 0) {
-                setCountdown(`${minutes}m ${seconds}s`);
-            } else {
-                setCountdown(`${seconds}s`);
-            }
-        };
-
-        updateCountdown();
-        const interval = setInterval(updateCountdown, 1000);
-
-        return () => clearInterval(interval);
-    }, [passInfo]);
 
     const targetOptions = useMemo(() => trackerInstances.map((instance, index) => {
         const instanceTrackerId = instance?.tracker_id || '';
@@ -1252,9 +1152,9 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
             <Box
                 sx={{
                     alignItems: 'center',
-                    flex: '0 0 320px',
-                    minWidth: 280,
-                    maxWidth: 360,
+                    flex: '0 0 380px',
+                    minWidth: 320,
+                    maxWidth: 440,
                     display: { xs: 'none', lg: 'flex' },
                     gap: 1,
                 }}
@@ -1276,95 +1176,6 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
                     minWidth: 0,
                 }}
             >
-                {/* Tracking status badge */}
-                {satelliteId && (
-                    <Tooltip title={rigData?.tracking || rotatorData?.tracking ? "Tracking active" : "Tracking stopped"}>
-                        <Chip
-                            icon={rigData?.tracking || rotatorData?.tracking ? <GpsFixedIcon /> : <GpsOffIcon />}
-                            label={rigData?.tracking || rotatorData?.tracking ? "Tracking" : "Stopped"}
-                            size="small"
-                            sx={{
-                                display: { xs: 'none', lg: 'flex' },
-                                bgcolor: rigData?.tracking || rotatorData?.tracking ? 'success.main' : 'action.hover',
-                                color: rigData?.tracking || rotatorData?.tracking ? 'white' : 'text.secondary',
-                                fontWeight: 'bold',
-                                '& .MuiChip-icon': {
-                                    color: rigData?.tracking || rotatorData?.tracking ? 'white' : 'text.secondary',
-                                }
-                            }}
-                        />
-                    </Tooltip>
-                )}
-
-                <Tooltip
-                    title={
-                        activeTrackerInstance
-                            ? `Target ${activeTargetNumber || '?'} | tracker ${activeTrackerInstance.tracker_id} | rotator ${activeTrackerInstance.rotator_id || 'none'}`
-                            : `Tracker ${trackerId || 'none'}`
-                    }
-                >
-                    <Chip
-                        size="small"
-                        color="info"
-                        variant="outlined"
-                        label={activeTrackerInstance ? `Target ${activeTargetNumber || '?'}` : 'No target'}
-                        sx={{ display: { xs: 'none', xl: 'flex' } }}
-                    />
-                </Tooltip>
-
-                {/* Current elevation with trend */}
-                {satelliteId && satelliteData?.position && (
-                    <Tooltip title={`Elevation: ${satelliteData.position.el?.toFixed(2)}°`}>
-                        <Chip
-                            icon={
-                                selectedSatellitePositions?.[satelliteId]?.trend === 'rising_slow' || selectedSatellitePositions?.[satelliteId]?.trend === 'rising_fast' ? <TrendingUpIcon /> :
-                                selectedSatellitePositions?.[satelliteId]?.trend === 'falling_slow' || selectedSatellitePositions?.[satelliteId]?.trend === 'falling_fast' ? <TrendingDownIcon /> :
-                                selectedSatellitePositions?.[satelliteId]?.trend === 'peak' ? <HorizontalRuleIcon /> :
-                                null
-                            }
-                            label={`El: ${satelliteData.position.el?.toFixed(1)}°`}
-                            size="small"
-                            sx={{
-                                display: { xs: 'none', lg: 'flex' },
-                                bgcolor: satelliteData.position.el < 0 ? 'action.hover' :
-                                         satelliteData.position.el < 10 ? 'error.main' :
-                                         satelliteData.position.el < 45 ? 'warning.main' : 'success.main',
-                                color: satelliteData.position.el < 0 ? 'text.secondary' : 'white',
-                                fontWeight: 'bold',
-                                fontFamily: 'monospace',
-                                '& .MuiChip-icon': {
-                                    color: satelliteData.position.el < 0 ? 'text.secondary' :
-                                           selectedSatellitePositions?.[satelliteId]?.trend === 'rising_slow' || selectedSatellitePositions?.[satelliteId]?.trend === 'rising_fast' ? 'info.light' :
-                                           selectedSatellitePositions?.[satelliteId]?.trend === 'falling_slow' || selectedSatellitePositions?.[satelliteId]?.trend === 'falling_fast' ? 'error.light' :
-                                           selectedSatellitePositions?.[satelliteId]?.trend === 'peak' ? 'warning.light' :
-                                           'white',
-                                }
-                            }}
-                        />
-                    </Tooltip>
-                )}
-
-                {/* Pass countdown */}
-                {passInfo && countdown && (
-                    <Tooltip title={passInfo.type === 'active' ? 'Current pass ending' : 'Next pass starting'}>
-                        <Chip
-                            icon={passInfo.type === 'active' ? <AccessTimeIcon /> : <TrendingUpIcon />}
-                            label={countdown}
-                            size="small"
-                            sx={{
-                                display: { xs: 'none', lg: 'flex' },
-                                bgcolor: passInfo.type === 'active' ? 'success.main' : 'info.main',
-                                color: 'white',
-                                fontWeight: 'bold',
-                                fontFamily: 'monospace',
-                                '& .MuiChip-icon': {
-                                    color: 'white',
-                                }
-                            }}
-                        />
-                    </Tooltip>
-                )}
-
                 {/* Stop tracking button */}
                 {satelliteId && (
                     <Button

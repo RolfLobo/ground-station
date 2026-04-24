@@ -52,12 +52,12 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import PublicIcon from '@mui/icons-material/Public';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import UpdateIcon from '@mui/icons-material/Update';
 import BusinessIcon from '@mui/icons-material/Business';
 import RadioIcon from '@mui/icons-material/Radio';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import EditIcon from '@mui/icons-material/Edit';
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import Grid from "@mui/material/Grid";
 import React from "react";
 import TransmittersDialog from "../satellites/transmitters-dialog.jsx";
@@ -71,23 +71,92 @@ const TargetSatelliteInfoIsland = () => {
     const { t: tSat } = useTranslation('satellites');
     const dispatch = useDispatch();
     const { socket } = useSocket();
-    const { satelliteData, gridEditable, satelliteId } = useSelector((state) => state.targetSatTrack);
+    const { satelliteData, gridEditable, satelliteId, satellitePasses } = useSelector((state) => state.targetSatTrack);
     const trackerInstances = useSelector((state) => state.trackerInstances?.instances || []);
     const selectedSatellitePositions = useSelector(state => state.overviewSatTrack.selectedSatellitePositions);
     const navigate = useNavigate();
     const transmitters = satelliteData?.transmitters || [];
     const [satelliteEditDialogOpen, setSatelliteEditDialogOpen] = React.useState(false);
     const [transmittersDialogOpen, setTransmittersDialogOpen] = React.useState(false);
+    const [countdown, setCountdown] = React.useState('');
     const selectedNoradId = satelliteData?.details?.norad_id || satelliteId || null;
     const selectedSatelliteName = satelliteData?.details?.name || '';
     const hasTargets = trackerInstances.length > 0;
     const hasSatelliteSelection = Boolean(selectedNoradId);
+    const hasOperator = Boolean(
+        satelliteData
+        && satelliteData['details']
+        && satelliteData['details']['operator']
+        && satelliteData['details']['operator'] !== 'None'
+    );
     const satelliteDialogData = {
         ...(satelliteData?.details || {}),
         norad_id: selectedNoradId,
         name: selectedSatelliteName,
         transmitters,
     };
+
+    const passInfo = React.useMemo(() => {
+        if (!selectedNoradId || !Array.isArray(satellitePasses) || satellitePasses.length === 0) {
+            return null;
+        }
+        const now = new Date();
+        const selectedNorad = String(selectedNoradId);
+
+        const activePass = satellitePasses.find((pass) => {
+            if (String(pass?.norad_id ?? '') !== selectedNorad) return false;
+            const start = new Date(pass?.event_start);
+            const end = new Date(pass?.event_end);
+            return now >= start && now <= end;
+        });
+        if (activePass) {
+            return { type: 'active', pass: activePass };
+        }
+
+        let nextPass = null;
+        let earliestStart = null;
+        for (const pass of satellitePasses) {
+            if (String(pass?.norad_id ?? '') !== selectedNorad) continue;
+            const start = new Date(pass?.event_start);
+            if (start > now && (!earliestStart || start < earliestStart)) {
+                earliestStart = start;
+                nextPass = pass;
+            }
+        }
+        if (nextPass) {
+            return { type: 'upcoming', pass: nextPass };
+        }
+        return null;
+    }, [selectedNoradId, satellitePasses]);
+
+    React.useEffect(() => {
+        if (!passInfo) {
+            setCountdown('');
+            return;
+        }
+        const updateCountdown = () => {
+            const now = new Date();
+            const targetTime = passInfo.type === 'active'
+                ? new Date(passInfo.pass.event_end)
+                : new Date(passInfo.pass.event_start);
+            const diff = targetTime - now;
+            if (diff <= 0) {
+                setCountdown('0s');
+                return;
+            }
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            if (days > 0) setCountdown(`${days}d ${hours}h ${minutes}m`);
+            else if (hours > 0) setCountdown(`${hours}h ${minutes}m ${seconds}s`);
+            else if (minutes > 0) setCountdown(`${minutes}m ${seconds}s`);
+            else setCountdown(`${seconds}s`);
+        };
+        updateCountdown();
+        const interval = window.setInterval(updateCountdown, 1000);
+        return () => window.clearInterval(interval);
+    }, [passInfo]);
 
     const handleSatelliteSaved = () => {
         if (!selectedNoradId) {
@@ -333,23 +402,17 @@ const TargetSatelliteInfoIsland = () => {
                 </Box>
 
                 <Grid container spacing={0.5}>
-                    <Grid size={3}>
+                    <Grid size={hasOperator ? 6.5 : 9}>
                         <Box sx={{ display: 'flex', alignItems: 'center', px: 0.5, py: 0.3, bgcolor: 'overlay.main', borderRadius: 0.5 }}>
-                            <RocketLaunchIcon sx={{ fontSize: 11, mr: 0.4, color: 'text.secondary' }} />
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem' }}>
-                                {satelliteData && satelliteData['details'] ? humanizeDate(satelliteData['details']['launched']) : 'N/A'}
+                            <AccessTimeIcon sx={{ fontSize: 11, mr: 0.4, color: 'text.secondary' }} />
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem' }} noWrap>
+                                {passInfo && countdown
+                                    ? (passInfo.type === 'active' ? `Pass ends in ${countdown}` : `Next pass in ${countdown}`)
+                                    : 'No upcoming pass'}
                             </Typography>
                         </Box>
                     </Grid>
-                    <Grid size={satelliteData && satelliteData['details'] && satelliteData['details']['operator'] && satelliteData['details']['operator'] !== 'None' ? 3.5 : 6}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', px: 0.5, py: 0.3, bgcolor: 'overlay.main', borderRadius: 0.5 }}>
-                            <UpdateIcon sx={{ fontSize: 11, mr: 0.4, color: 'text.secondary' }} />
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.68rem' }}>
-                                {satelliteData && satelliteData['details'] ? humanizeDate(satelliteData['details']['updated']) : 'N/A'}
-                            </Typography>
-                        </Box>
-                    </Grid>
-                    {satelliteData && satelliteData['details'] && satelliteData['details']['operator'] && satelliteData['details']['operator'] !== 'None' && (
+                    {hasOperator && (
                         <Grid size={2.5}>
                             <Box sx={{ display: 'flex', alignItems: 'center', px: 0.5, py: 0.3, bgcolor: 'overlay.main', borderRadius: 0.5 }}>
                                 <BusinessIcon sx={{ fontSize: 11, mr: 0.4, color: 'text.secondary' }} />
@@ -374,7 +437,6 @@ const TargetSatelliteInfoIsland = () => {
 
             {/* Main Content */}
             <Box sx={{ pr: 1.5, pl: 1.5, pt: 1.5, pb: 1, flex: 1, overflow: 'auto' }}>
-
                 {/* Real-time Position Data - Priority Section */}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <ExploreIcon sx={{ fontSize: 14, mr: 0.75, color: 'primary.main' }} />
@@ -737,6 +799,32 @@ const TargetSatelliteInfoIsland = () => {
                                     </Typography>
                                     <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, fontSize: '0.65rem' }}>
                                         {satelliteData && satelliteData['details'] ? humanizeDate(satelliteData['details']['added']) : t('satellite_info.values.na')}
+                                    </Typography>
+                                </Box>
+                            </Grid>
+                            <Grid size={12}>
+                                <Divider sx={{ my: 0.5 }} />
+                            </Grid>
+                            <Grid size={12}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                                        Launched
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, fontSize: '0.65rem' }}>
+                                        {satelliteData && satelliteData['details'] ? humanizeDate(satelliteData['details']['launched']) : t('satellite_info.values.na')}
+                                    </Typography>
+                                </Box>
+                            </Grid>
+                            <Grid size={12}>
+                                <Divider sx={{ my: 0.5 }} />
+                            </Grid>
+                            <Grid size={12}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                                        Updated
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: 'text.primary', fontWeight: 600, fontSize: '0.65rem' }}>
+                                        {satelliteData && satelliteData['details'] ? humanizeDate(satelliteData['details']['updated']) : t('satellite_info.values.na')}
                                     </Typography>
                                 </Box>
                             </Grid>
