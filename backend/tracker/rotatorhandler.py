@@ -233,15 +233,21 @@ class RotatorHandler:
         if new == "connected":
             self._reset_slew_state()
             await self.connect_to_rotator()
-            self.tracker.rotator_data["connected"] = True
-            self.tracker.rotator_data["stopped"] = True
-            self.tracker.rotator_data["parked"] = False
+            if self.tracker.rotator_controller is not None and self.tracker.rotator_data.get(
+                "connected"
+            ):
+                self.tracker.rotator_data["connected"] = True
+                self.tracker.rotator_data["stopped"] = True
+                self.tracker.rotator_data["parked"] = False
         elif new == "tracking":
             self._reset_slew_state()
             await self.connect_to_rotator()
-            self.tracker.rotator_data["tracking"] = True
-            self.tracker.rotator_data["stopped"] = False
-            self.tracker.rotator_data["parked"] = False
+            if self.tracker.rotator_controller is not None and self.tracker.rotator_data.get(
+                "connected"
+            ):
+                self.tracker.rotator_data["tracking"] = True
+                self.tracker.rotator_data["stopped"] = False
+                self.tracker.rotator_data["parked"] = False
         elif new == "stopped":
             self._reset_slew_state()
             self.tracker.rotator_data["tracking"] = False

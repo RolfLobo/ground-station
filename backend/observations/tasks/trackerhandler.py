@@ -22,6 +22,7 @@ from typing import Any, Dict, List
 from common.logger import logger
 from tracker.contracts import normalize_tracker_id, require_tracker_id
 from tracker.runner import get_tracker_manager
+from tracker.stateupdate import update_tracking_state_with_ownership
 
 
 class TrackerHandler:
@@ -40,7 +41,7 @@ class TrackerHandler:
         satellite: Dict[str, Any],
         rotator_config: Dict[str, Any],
         tasks: List[Dict[str, Any]],
-    ) -> bool:
+    ) -> Dict[str, Any]:
         """
         Start rotator tracking for an observation.
 
@@ -51,12 +52,12 @@ class TrackerHandler:
             tasks: List of observation tasks
 
         Returns:
-            True if tracker started successfully
+            Dictionary with success/failure metadata
         """
         try:
             if not rotator_config.get("tracking_enabled") or not rotator_config.get("id"):
                 logger.debug(f"Rotator tracking not enabled for observation {observation_id}")
-                return False
+                return {"success": True, "skipped": True, "reason": "tracking_disabled"}
 
             # Extract transmitter ID from decoder tasks (if any)
             transmitter_id = "none"
@@ -74,35 +75,51 @@ class TrackerHandler:
 
             # Optional unpark step before switching to tracking mode.
             if current_rotator_state == "parked" and unpark_before_tracking:
-                await tracker_manager.update_tracking_state(
-                    rotator_state="connected",
-                    rotator_id=rotator_config.get("id"),
+                unpark_reply: Dict[str, Any] = await update_tracking_state_with_ownership(
+                    tracker_id=tracker_id,
+                    value={
+                        "rotator_state": "connected",
+                        "rotator_id": rotator_config.get("id"),
+                    },
+                    requester_sid=f"observation:{observation_id}",
                 )
+                if not unpark_reply.get("success"):
+                    return unpark_reply
                 await asyncio.sleep(0.2)
 
-            await tracker_manager.update_tracking_state(
-                norad_id=satellite.get("norad_id"),
-                group_id=satellite.get("group_id"),
-                rotator_state="tracking",  # Start tracking satellite
-                rotator_id=rotator_config.get("id"),
-                rig_state="disconnected",  # Observations don't use rig for now
-                rig_id="none",
-                transmitter_id=transmitter_id,
-                rig_vfo="none",
-                vfo1="uplink",
-                vfo2="downlink",
+            tracking_reply: Dict[str, Any] = await update_tracking_state_with_ownership(
+                tracker_id=tracker_id,
+                value={
+                    "norad_id": satellite.get("norad_id"),
+                    "group_id": satellite.get("group_id"),
+                    "rotator_state": "tracking",  # Start tracking satellite
+                    "rotator_id": rotator_config.get("id"),
+                    "rig_state": "disconnected",  # Observations don't use rig for now
+                    "rig_id": "none",
+                    "transmitter_id": transmitter_id,
+                    "rig_vfo": "none",
+                    "vfo1": "uplink",
+                    "vfo2": "downlink",
+                },
+                requester_sid=f"observation:{observation_id}",
             )
+            if not tracking_reply.get("success"):
+                return tracking_reply
 
             logger.info(
                 f"Started tracking {satellite.get('name')} (NORAD {satellite.get('norad_id')}) "
                 f"for observation {observation_id}"
             )
-            return True
+            return {"success": True}
 
         except Exception as e:
             logger.error(f"Error starting tracker: {e}")
             logger.error(traceback.format_exc())
-            return False
+            return {
+                "success": False,
+                "error": "tracker_start_failed",
+                "message": str(e),
+            }
 
     async def stop_tracker_task(self, observation_id: str, rotator_config: Dict[str, Any]) -> bool:
         """
@@ -121,14 +138,24 @@ class TrackerHandler:
                 return True
 
             tracker_id = self._resolve_tracker_id(rotator_config)
-            tracker_manager = get_tracker_manager(tracker_id)
             park_after_observation = bool(rotator_config.get("park_after_observation", False))
 
             if park_after_observation:
-                await tracker_manager.update_tracking_state(
-                    rotator_state="parked",
-                    rotator_id=rotator_config.get("id"),
+                park_reply = await update_tracking_state_with_ownership(
+                    tracker_id=tracker_id,
+                    value={
+                        "rotator_state": "parked",
+                        "rotator_id": rotator_config.get("id"),
+                    },
+                    requester_sid=f"observation:{observation_id}",
                 )
+                if not park_reply.get("success"):
+                    logger.warning(
+                        "Failed to park rotator for observation %s: %s",
+                        observation_id,
+                        park_reply,
+                    )
+                    return False
                 logger.info(f"Parked rotator after observation {observation_id}")
             else:
                 logger.debug(f"Leaving rotator connected after observation {observation_id}")

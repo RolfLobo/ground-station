@@ -279,9 +279,48 @@ class ObservationExecutor:
 
             rotator_config = observation.get("rotator", {})
             satellite = observation.get("satellite", {})
-            await self.tracker_handler.start_tracker_task(
+            tracker_start_result = await self.tracker_handler.start_tracker_task(
                 observation_id, satellite, rotator_config, combined_tasks
             )
+            if not tracker_start_result.get("success"):
+                tracker_error = tracker_start_result.get("error", "tracker_start_failed")
+                tracker_message = tracker_start_result.get(
+                    "message",
+                    f"Failed to start tracker for observation {observation_id}",
+                )
+
+                await log_execution_event(
+                    observation_id,
+                    f"Tracker start failed ({tracker_error}): {tracker_message}",
+                    "error",
+                )
+
+                for session_key, session in started_sessions:
+                    try:
+                        await self._stop_observation_session(
+                            observation_id, session_key, session, satellite
+                        )
+                    except Exception as cleanup_error:
+                        logger.error(
+                            f"Failed to clean up session {session_key} after tracker start error: "
+                            f"{cleanup_error}"
+                        )
+
+                self._running_observations.discard(observation_id)
+
+                status = STATUS_CANCELLED if tracker_error == "rotator_in_use" else STATUS_FAILED
+                await update_observation_status(
+                    self.sio,
+                    observation_id,
+                    status,
+                    f"{tracker_error}: {tracker_message}",
+                )
+                await remove_scheduled_stop_job(observation_id)
+                return {
+                    "success": False,
+                    "error": tracker_message,
+                    "code": tracker_error,
+                }
 
             # 7. Update observation status to RUNNING
             await update_observation_status(self.sio, observation_id, STATUS_RUNNING)

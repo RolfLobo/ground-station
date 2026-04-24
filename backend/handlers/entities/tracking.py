@@ -34,14 +34,13 @@ from tracker.contracts import InvalidTrackerIdError, get_tracking_state_name, re
 from tracker.data import compiled_satellite_data, get_ui_tracker_state
 from tracker.instances import emit_tracker_instances
 from tracker.runner import (
-    assign_rotator_to_tracker,
     get_assigned_rotator_for_tracker,
     get_tracker_instances_payload,
     get_tracker_manager,
     remove_tracker_instance,
-    restore_tracker_rotator_assignment,
     swap_rotators_between_trackers,
 )
+from tracker.stateupdate import update_tracking_state_with_ownership
 from tracking.events import fetch_next_events_for_satellite
 
 
@@ -247,39 +246,21 @@ async def set_tracking_state(
                 },
             }
 
-    # Enforce one rotator -> one tracker ownership.
-    assignment_previous_rotator = get_assigned_rotator_for_tracker(tracker_id)
-    requested_rotator_id = value.get("rotator_id") if value else None
-    ownership_touched = requested_rotator_id is not None
-    if ownership_touched:
-        assignment_result = assign_rotator_to_tracker(tracker_id, requested_rotator_id)
-        if not assignment_result.get("success"):
-            owner_tracker_id = assignment_result.get("owner_tracker_id")
-            message = f"Rotator '{requested_rotator_id}' is already assigned to tracker '{owner_tracker_id}'."
+    update_reply: Dict[str, Any] = await update_tracking_state_with_ownership(
+        tracker_id=tracker_id, value=value, requester_sid=sid
+    )
+    if not update_reply.get("success"):
+        if update_reply.get("error") == "rotator_in_use":
             logger.warning(
                 "Rotator ownership conflict while setting tracking state "
                 "(requester_sid=%s, tracker_id=%s, requested_rotator_id=%s, owner_tracker_id=%s)",
                 sid,
                 tracker_id,
-                requested_rotator_id,
-                owner_tracker_id,
+                value.get("rotator_id"),
+                (update_reply.get("data") or {}).get("owner_tracker_id"),
             )
-            return {
-                "success": False,
-                "error": "rotator_in_use",
-                "message": message,
-                "data": {
-                    "tracker_id": tracker_id,
-                    "rotator_id": requested_rotator_id,
-                    "owner_tracker_id": owner_tracker_id,
-                },
-            }
-
-    # Use TrackerManager to update tracking state
-    manager = get_tracker_manager(tracker_id)
-    result = await manager.update_tracking_state(requester_sid=sid, **value)
-    if not result.get("success") and ownership_touched:
-        restore_tracker_rotator_assignment(tracker_id, assignment_previous_rotator)
+        return update_reply
+    result = update_reply.get("result", {})
     command_id = result.get("command_id")
 
     command_scope = result.get("command_scope", TrackerCommandScopes.TRACKING)
