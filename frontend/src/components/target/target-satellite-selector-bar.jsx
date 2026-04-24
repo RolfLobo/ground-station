@@ -1045,9 +1045,6 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
                                 if (option.runningObsCount > 0) {
                                     tooltipLines.push(`Obs running: ${option.runningObsCount}`);
                                 }
-                                if (option.upcomingObsCount > 0) {
-                                    tooltipLines.push(`Obs upcoming: ${option.upcomingObsCount}`);
-                                }
                                 return (
                                     <Tab
                                         key={option.trackerId}
