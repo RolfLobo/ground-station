@@ -163,43 +163,21 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
         dispatch(setTrackerId(value));
     }, [dispatch]);
 
-    const handleDeleteTarget = useCallback((event, trackerIdToDelete) => {
+    const handleDeleteTarget = useCallback((event, targetOption) => {
         event.preventDefault();
         event.stopPropagation();
+        const trackerIdToDelete = targetOption?.trackerId;
         if (!trackerIdToDelete) {
             return;
         }
         const instance = trackerInstances.find((row) => row?.tracker_id === trackerIdToDelete);
-        const view = trackerViews?.[trackerIdToDelete] || {};
-        const targetRotatorId = String(view?.selectedRotator || instance?.rotator_id || instance?.tracking_state?.rotator_id || 'none');
-        const targetNorad = String(view?.trackingState?.norad_id || instance?.tracking_state?.norad_id || 'none');
-        const canUseNoradFallback = (
-            targetRotatorId === 'none'
-            && targetNorad !== 'none'
-            && (targetNoradUsage[targetNorad] || 0) === 1
-        );
         const targetNumber = Number(
             instance?.target_number
             || (trackerInstances.findIndex((row) => row?.tracker_id === trackerIdToDelete) + 1)
             || 0
         );
-        const linkedRunningOrScheduled = schedulerObservations
-            .filter((obs) => {
-                if (!obs?.enabled) return false;
-                if (obs?.status !== 'running' && obs?.status !== 'scheduled') return false;
-                const obsRotatorId = String(obs?.rotator?.id || obs?.rotator_id || 'none');
-                const obsNorad = String(obs?.satellite?.norad_id || 'none');
-                if (obsRotatorId !== 'none' && targetRotatorId !== 'none') {
-                    return obsRotatorId === targetRotatorId;
-                }
-                if (obsRotatorId !== 'none' || targetRotatorId !== 'none') {
-                    return false;
-                }
-                if (canUseNoradFallback && obsNorad !== 'none') {
-                    return obsNorad === targetNorad;
-                }
-                return false;
-            });
+        const linkedRunningOrScheduled = (targetOption?.linkedObservations || [])
+            .filter((obs) => obs?.status === 'running' || obs?.status === 'scheduled');
         if (linkedRunningOrScheduled.length > 0) {
             const runningFirst = linkedRunningOrScheduled.find((obs) => obs?.status === 'running');
             setPendingAbortObservation(runningFirst || linkedRunningOrScheduled[0]);
@@ -208,7 +186,7 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
         }
         setPendingDeleteTarget({ trackerId: trackerIdToDelete, targetNumber });
         setDeleteDialogOpen(true);
-    }, [trackerInstances, trackerViews, schedulerObservations, targetNoradUsage]);
+    }, [trackerInstances]);
 
     const handleConfirmAbortObservation = useCallback(async () => {
         if (!pendingAbortObservation?.id || !socket) {
@@ -1236,7 +1214,7 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
                                                     </Box>
                                                     <IconButton
                                                         size="small"
-                                                        onClick={(event) => handleDeleteTarget(event, option.trackerId)}
+                                                        onClick={(event) => handleDeleteTarget(event, option)}
                                                         sx={{
                                                             p: 0.2,
                                                             ml: 0.2,
