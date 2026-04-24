@@ -85,7 +85,12 @@ export default function ObservationStatusBanner() {
 
     // Handler for confirming cancellation
     const handleConfirmCancel = () => {
-        if (selectedObservationForAction?.id && socket) {
+        if (!selectedObservationForAction?.id) {
+            setConfirmDialogOpen(false);
+            setSelectedObservationForAction(null);
+            return;
+        }
+        if (socket) {
             dispatch(cancelRunningObservation({ socket, id: selectedObservationForAction.id }));
         }
         setConfirmDialogOpen(false);
@@ -265,90 +270,89 @@ export default function ObservationStatusBanner() {
                 </Box>
 
                 {hasRunning ? (
-                    <Stack spacing={1} sx={{ width: '100%' }}>
-                        {runningObservations.slice(0, 3).map((observation) => {
-                            const startTime = formatTime(observation.task_start || observation.pass?.event_start);
-                            const endTime = formatTime(observation.task_end || observation.pass?.event_end);
-                            const sdrs = getSessionSdrs(observation);
-                            const taskSummary = getTaskSummary(observation);
-                            return (
-                                <Stack
-                                    key={observation.id}
-                                    direction="row"
-                                    alignItems="center"
-                                    spacing={1}
-                                    flexWrap="wrap"
-                                    sx={{
-                                        p: 1,
-                                        borderRadius: 1,
-                                        bgcolor: 'rgba(76, 175, 80, 0.08)',
-                                        border: '1px solid rgba(76, 175, 80, 0.28)',
-                                    }}
-                                >
-                                    <Typography variant="body2" fontWeight={600}>
+                    (() => {
+                        const observation = runningObservations[0];
+                        const additionalRunning = Math.max(runningObservations.length - 1, 0);
+                        const startTime = formatTime(observation.task_start || observation.pass?.event_start);
+                        const endTime = formatTime(observation.task_end || observation.pass?.event_end);
+                        const sdrs = getSessionSdrs(observation);
+                        const taskSummary = getTaskSummary(observation);
+                        return (
+                            <>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                    <Typography variant="body1" fontWeight={600}>
                                         {observation.satellite?.name || 'Unknown'}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
                                         ({observation.satellite?.norad_id || 'N/A'})
                                     </Typography>
-                                    <Chip
-                                        label={getCountdown(observation)}
-                                        size="small"
-                                        sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)', fontWeight: 600 }}
-                                    />
-                                    {startTime && endTime && (
-                                        <Typography variant="body2" color="text.secondary">
-                                            {startTime} - {endTime}
-                                        </Typography>
-                                    )}
-                                    {observation.pass?.peak_altitude && (
+                                    {additionalRunning > 0 && (
                                         <Chip
-                                            label={`${observation.pass.peak_altitude.toFixed(0)}° peak`}
+                                            label={`+${additionalRunning}`}
                                             size="small"
                                             variant="outlined"
+                                            sx={{ fontWeight: 700 }}
                                         />
                                     )}
-                                    {sdrs.length > 0 && (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Router sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                            <Typography variant="body2" color="text.secondary">
-                                                {sdrs.length === 1 ? sdrs[0]?.name : `${sdrs.length} SDRs`}
-                                            </Typography>
-                                        </Box>
-                                    )}
-                                    {taskSummary && (
+                                </Box>
+                                <Chip
+                                    label={getCountdown(observation)}
+                                    size="small"
+                                    sx={{ bgcolor: 'rgba(76, 175, 80, 0.2)', fontWeight: 600 }}
+                                />
+                                {startTime && endTime && (
+                                    <Typography variant="body2" color="text.secondary">
+                                        {startTime} - {endTime}
+                                    </Typography>
+                                )}
+                                {observation.pass?.peak_altitude && (
+                                    <Chip
+                                        label={`${observation.pass.peak_altitude.toFixed(0)}° peak`}
+                                        size="small"
+                                        variant="outlined"
+                                    />
+                                )}
+                                {sdrs.length > 0 && (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Router sx={{ fontSize: 16, color: 'text.secondary' }} />
                                         <Typography variant="body2" color="text.secondary">
-                                            {taskSummary}
+                                            {sdrs.length === 1 ? sdrs[0]?.name : `${sdrs.length} SDRs`}
                                         </Typography>
-                                    )}
-                                    <Box sx={{ marginLeft: 'auto' }}>
-                                        <Tooltip title="Stop observation">
-                                            <Button
-                                                variant="outlined"
-                                                size="small"
-                                                color="error"
-                                                startIcon={<Stop />}
-                                                onClick={() => handleCancelClick(observation)}
-                                            >
-                                                Stop
-                                            </Button>
-                                        </Tooltip>
                                     </Box>
-                                </Stack>
-                            );
-                        })}
-                        {runningObservations.length > 3 && (
-                            <Typography variant="body2" color="text.secondary">
-                                +{runningObservations.length - 3} more running observation
-                                {runningObservations.length - 3 > 1 ? 's' : ''}
-                            </Typography>
-                        )}
-                        {nextObservation && (
-                            <Typography variant="body2" color="text.secondary">
-                                Next up: <strong>{nextObservation.satellite?.name || 'Unknown'}</strong> ({nextObservation.satellite?.norad_id || 'N/A'}) {getCountdown(nextObservation)}
-                            </Typography>
-                        )}
-                    </Stack>
+                                )}
+                                {taskSummary && (
+                                    <Typography variant="body2" color="text.secondary">
+                                        {taskSummary}
+                                    </Typography>
+                                )}
+                                <Box
+                                    sx={{
+                                        marginLeft: { xs: 0, sm: 'auto' },
+                                        width: { xs: '100%', sm: 'auto' },
+                                        display: 'flex',
+                                        justifyContent: { xs: 'flex-end', sm: 'flex-start' },
+                                    }}
+                                >
+                                    <Tooltip title="Stop observation">
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            color="error"
+                                            startIcon={<Stop />}
+                                            onClick={() => handleCancelClick(observation)}
+                                        >
+                                            Stop
+                                        </Button>
+                                    </Tooltip>
+                                </Box>
+                                {nextObservation && (
+                                    <Typography variant="body2" color="text.secondary">
+                                        Next up: <strong>{nextObservation.satellite?.name || 'Unknown'}</strong> ({nextObservation.satellite?.norad_id || 'N/A'}) {getCountdown(nextObservation)}
+                                    </Typography>
+                                )}
+                            </>
+                        );
+                    })()
                 ) : (
                     (() => {
                         const observation = nextObservation;

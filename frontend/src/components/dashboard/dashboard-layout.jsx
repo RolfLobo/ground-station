@@ -83,7 +83,6 @@ import BackgroundTasksPopover from "../tasks/tasks-popover.jsx";
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import {getNavigation} from "../../config/navigation.jsx";
-import { getFlattenedTasks, getSessionSdrs } from "../scheduler/session-utils.js";
 import { useUserTimeSettings } from '../../hooks/useUserTimeSettings.jsx';
 import { formatTime } from '../../utils/date-time.js';
 
@@ -247,8 +246,6 @@ function ActiveObservationIndicator() {
         })
         : null;
     const peakAltitude = primaryObservation.pass?.peak_altitude;
-    const taskCount = getFlattenedTasks(primaryObservation).length;
-    const sdrCount = getSessionSdrs(primaryObservation).length;
 
     const getRemainingText = (observation) => {
         const endIso = observation.task_end || observation.pass?.event_end;
@@ -345,7 +342,7 @@ function ActiveObservationIndicator() {
                     • {formattedEndTime ? `ends ${formattedEndTime}` : ''}{formattedEndTime ? ' • ' : ''}{getRemainingText(primaryObservation)}
                 </Typography>
             )}
-            {formattedStartTime && (
+            {formattedStartTime && runningObservations.length === 1 && (
                 <Typography
                     variant="caption"
                     sx={{
@@ -369,32 +366,6 @@ function ActiveObservationIndicator() {
                     }}
                 >
                     • peak {peakAltitude.toFixed(0)}°
-                </Typography>
-            )}
-            {sdrCount > 0 && (
-                <Typography
-                    variant="caption"
-                    sx={{
-                        color: 'text.secondary',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}
-                >
-                    • {sdrCount} SDR{sdrCount > 1 ? 's' : ''}
-                </Typography>
-            )}
-            {taskCount > 0 && (
-                <Typography
-                    variant="caption"
-                    sx={{
-                        color: 'text.secondary',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}
-                >
-                    • {taskCount} task{taskCount > 1 ? 's' : ''}
                 </Typography>
             )}
         </Box>
@@ -444,9 +415,6 @@ function UpcomingObservationIndicator() {
         })
         : null;
     const peakAltitude = nextObservation.pass?.peak_altitude;
-    const taskCount = getFlattenedTasks(nextObservation).length;
-    const sdrCount = getSessionSdrs(nextObservation).length;
-
     const totalSeconds = Math.ceil(timeUntilStartMs / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
@@ -548,32 +516,6 @@ function UpcomingObservationIndicator() {
                     }}
                 >
                     • peak {peakAltitude.toFixed(0)}°
-                </Typography>
-            )}
-            {sdrCount > 0 && (
-                <Typography
-                    variant="caption"
-                    sx={{
-                        color: 'text.secondary',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}
-                >
-                    • {sdrCount} SDR{sdrCount > 1 ? 's' : ''}
-                </Typography>
-            )}
-            {taskCount > 0 && (
-                <Typography
-                    variant="caption"
-                    sx={{
-                        color: 'text.secondary',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}
-                >
-                    • {taskCount} task{taskCount > 1 ? 's' : ''}
                 </Typography>
             )}
         </Box>
@@ -978,10 +920,10 @@ export default function Layout() {
 
         // Find next enabled scheduled observation
         const nextObservation = schedulerObservations
-            .filter(obs => obs.status === 'scheduled' && obs.enabled && obs.pass?.event_start)
+            .filter(obs => obs.status === 'scheduled' && obs.enabled && (obs.task_start || obs.pass?.event_start))
             .map(obs => ({
                 ...obs,
-                startTime: new Date(obs.pass.event_start),
+                startTime: new Date(obs.task_start || obs.pass.event_start),
             }))
             .filter(obs => obs.startTime > now)
             .sort((a, b) => a.startTime - b.startTime)[0];
@@ -1017,38 +959,34 @@ export default function Layout() {
 
                 // Show running observations (up to 3 lines)
                 if (runningObservations.length > 0) {
-                    runningObservations.slice(0, 3).forEach((runningObservation, index) => {
-                        const satelliteName = runningObservation.satellite?.name || 'Unknown';
-                        const endTime = runningObservation.pass?.event_end
-                            ? formatTime(runningObservation.pass.event_end, {
-                                timezone,
-                                locale,
-                                options: { hour: '2-digit', minute: '2-digit', hour12: false },
-                            })
-                            : 'N/A';
-                        const remainingTime = runningObservation.pass?.event_end
-                            ? formatTimeUntil(new Date(runningObservation.pass.event_end))
-                            : 'N/A';
-                        const prefix = index === 0 ? '⚫ Active: ' : '\n⚫ Active: ';
-                        parts.push(`${prefix}${satelliteName} (${remainingTime} left, ends ${endTime})`);
-                    });
-                    if (runningObservations.length > 3) {
-                        parts.push(`\n⚫ Active: +${runningObservations.length - 3} more`);
-                    }
+                    const primary = runningObservations[0];
+                    const satelliteName = primary.satellite?.name || 'Unknown';
+                    const endTime = primary.task_end || primary.pass?.event_end;
+                    const endLabel = endTime
+                        ? formatTime(endTime, {
+                            timezone,
+                            locale,
+                            options: { hour: '2-digit', minute: '2-digit', hour12: false },
+                        })
+                        : 'N/A';
+                    const remainingTime = endTime ? formatTimeUntil(new Date(endTime)) : 'N/A';
+                    const extras = runningObservations.length > 1 ? ` +${runningObservations.length - 1}` : '';
+                    parts.push(`⚫ Active: ${satelliteName}${extras} (${remainingTime} left, ends ${endLabel})`);
                 }
 
                 // Show next observation
                 if (nextObservation) {
                     const satelliteName = nextObservation.satellite?.name || 'Unknown';
-                    const correctedStartTime = nextObservation.pass?.event_start
-                        ? formatTime(nextObservation.pass.event_start, {
+                    const nextStart = nextObservation.task_start || nextObservation.pass?.event_start;
+                    const correctedStartTime = nextStart
+                        ? formatTime(nextStart, {
                             timezone,
                             locale,
                             options: { hour: '2-digit', minute: '2-digit', hour12: false },
                           })
                         : 'N/A';
-                    const timeUntil = nextObservation.pass?.event_start
-                        ? formatTimeUntil(new Date(nextObservation.pass.event_start))
+                    const timeUntil = nextStart
+                        ? formatTimeUntil(new Date(nextStart))
                         : 'N/A';
                     const prefix = runningObservations.length > 0 ? '\n⏱ Next: ' : '⏱ Next: ';
                     parts.push(`${prefix}${satelliteName} (in ${timeUntil}, starts ${correctedStartTime})`);
