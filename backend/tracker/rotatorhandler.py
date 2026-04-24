@@ -38,6 +38,10 @@ class RotatorHandler:
         """
         self.tracker = tracker
 
+    @staticmethod
+    def _fmt_state_value(value):
+        return "none" if value is None else value
+
     def _reset_slew_state(self):
         """Reset in-flight rotator command tracking."""
         self.tracker.rotator_command_state.update(
@@ -223,7 +227,11 @@ class RotatorHandler:
 
     async def handle_rotator_state_change(self, old, new):
         """Handle rotator state changes."""
-        logger.info(f"Rotator state change detected from '{old}' to '{new}'")
+        logger.info(
+            "Rotator state change detected from '%s' to '%s'",
+            self._fmt_state_value(old),
+            self._fmt_state_value(new),
+        )
 
         self.tracker.rotator_data["minelevation"] = False
         self.tracker.rotator_data["maxelevation"] = False
