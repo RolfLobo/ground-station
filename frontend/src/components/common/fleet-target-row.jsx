@@ -69,11 +69,13 @@ const FleetTargetRow = React.memo(function FleetTargetRow({
                 <Stack direction="row" spacing={0.6} alignItems="center" sx={{ mt: 0.6 }}>
                     {statusChip}
                     <Box sx={{ flexGrow: 1 }} />
-                    <Tooltip title="Open Tracking Console">
-                        <IconButton size="small" onClick={onOpenConsole}>
-                            <OpenInNewIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
+                    {onOpenConsole && (
+                        <Tooltip title="Open Tracking Console">
+                            <IconButton size="small" onClick={onOpenConsole}>
+                                <OpenInNewIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                     {actions}
                 </Stack>
             )}

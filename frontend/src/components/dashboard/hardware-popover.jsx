@@ -33,7 +33,6 @@ import {
 } from '@mui/material';
 import {SatelliteIcon} from "hugeicons-react";
 import OverlayIcon from "./icons-overlay.jsx";
-import { useNavigate } from "react-router-dom";
 
 // Import overlay icons
 import CloseIcon from '@mui/icons-material/Close';
@@ -53,7 +52,6 @@ import FleetTargetRow from "../common/fleet-target-row.jsx";
 
 const HardwareSettingsPopover = () => {
     const dispatch = useDispatch();
-    const navigate = useNavigate();
     const { t } = useTranslation('dashboard');
     const {socket} = useSocket();
     const buttonRef = useRef(null);
@@ -67,6 +65,7 @@ const HardwareSettingsPopover = () => {
     const trackerViews = useSelector((state) => state.targetSatTrack?.trackerViews || {});
     const trackerCommandsById = useSelector((state) => state.targetSatTrack?.trackerCommandsById || {});
     const rotators = useSelector((state) => state.rotators?.rotators || []);
+    const rigs = useSelector((state) => state.rigs?.rigs || []);
 
     // Keep selector output primitive/lightweight to reduce unnecessary re-renders.
     const hardwareState = useSelector((state) => {
@@ -252,6 +251,15 @@ const HardwareSettingsPopover = () => {
             return acc;
         }, {});
     }, [rotators]);
+    const rigNameById = React.useMemo(() => {
+        const entries = Array.isArray(rigs) ? rigs : [];
+        return entries.reduce((acc, rig) => {
+            const id = rig?.id;
+            if (id == null) return acc;
+            acc[String(id)] = rig?.name || String(id);
+            return acc;
+        }, {});
+    }, [rigs]);
 
     const fleetRows = React.useMemo(() => {
         return trackerInstances.map((instance, index) => {
@@ -273,7 +281,8 @@ const HardwareSettingsPopover = () => {
                 satNorad: trackingState?.norad_id || 'none',
                 rotatorId: trackingState?.rotator_id || instance?.rotator_id || 'none',
                 rotatorName: rotatorNameById[String(trackingState?.rotator_id || instance?.rotator_id || '')] || 'No rotator',
-                rigId: trackingState?.rig_id || 'none',
+                rigId: trackingState?.rig_id || instance?.rig_id || 'none',
+                rigName: rigNameById[String(trackingState?.rig_id || instance?.rig_id || '')] || 'No rig',
                 trackingState,
                 rotatorData,
                 rigData,
@@ -281,7 +290,7 @@ const HardwareSettingsPopover = () => {
                 isActive: instanceTrackerId === trackerId,
             };
         });
-    }, [trackerInstances, trackerViews, trackerCommandsById, trackerId, rotatorNameById]);
+    }, [trackerInstances, trackerViews, trackerCommandsById, trackerId, rotatorNameById, rigNameById]);
 
     const submitQuickAction = useCallback(async (row, nextState) => {
         if (!row?.trackerId) return;
@@ -366,6 +375,11 @@ const HardwareSettingsPopover = () => {
                         const statusLabel = isRotatorPanel
                             ? (row.rotatorData?.tracking ? 'Tracking' : (row.rotatorData?.connected ? 'Connected' : 'Disconnected'))
                             : (row.rigData?.tracking ? 'Tracking' : (row.rigData?.connected ? 'Connected' : 'Disconnected'));
+                        const formatHz = (value) => (
+                            Number.isFinite(Number(value))
+                                ? Number(value).toFixed(0)
+                                : 'N/A'
+                        );
                         const actionState = (() => {
                             const hasTarget = !['', 'none', null, undefined].includes(row.satNorad);
                             if (isRotatorPanel) {
@@ -398,52 +412,73 @@ const HardwareSettingsPopover = () => {
                         })();
                         const az = Number.isFinite(Number(row.rotatorData?.az)) ? Number(row.rotatorData.az).toFixed(1) : 'N/A';
                         const el = Number.isFinite(Number(row.rotatorData?.el)) ? Number(row.rotatorData.el).toFixed(1) : 'N/A';
+                        const rigFrequency = formatHz(row.rigData?.frequency);
+                        const rigVfo1 = formatHz(row.rigData?.vfo1?.frequency);
+                        const rigVfo2 = formatHz(row.rigData?.vfo2?.frequency);
+                        const rigDopplerShift = formatHz(row.rigData?.doppler_shift);
+                        const rigDownlinkObserved = formatHz(row.rigData?.downlink_observed_freq);
                         return (
                             <Box key={row.trackerId}>
                                 <FleetTargetRow
                                     targetNumber={row.targetNumber}
-                                    trackingActive={Boolean(row.rigData?.tracking || row.rotatorData?.tracking)}
+                                    trackingActive={Boolean(isRotatorPanel ? row.rotatorData?.tracking : row.rigData?.tracking)}
                                     satName={row.satName}
                                     satNorad={row.satNorad}
                                     elevation={null}
                                     isActive={false}
                                     onFocus={() => dispatch(setTrackerId(row.trackerId))}
-                                    onOpenConsole={() => {
-                                        dispatch(setTrackerId(row.trackerId));
-                                        navigate('/track');
-                                        handleClose();
-                                    }}
                                     extraMeta={(
-                                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
-                                            <Typography
-                                                variant="caption"
-                                                color="text.secondary"
-                                                sx={{
-                                                    minWidth: 0,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                    fontSize: '11px',
-                                                    lineHeight: 1.25,
-                                                }}
-                                            >
-                                                {row.rotatorName}
-                                            </Typography>
-                                            <Typography
-                                                variant="caption"
-                                                sx={{
-                                                    marginLeft: 'auto',
-                                                    color: 'text.secondary',
-                                                    fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                                                    fontFeatureSettings: '"tnum" 1',
-                                                    whiteSpace: 'nowrap',
-                                                    textAlign: 'right',
-                                                    fontSize: '12px',
-                                                    lineHeight: 1.25,
-                                                }}
-                                            >
-                                                Az {az}° El {el}°
-                                            </Typography>
+                                        <Box sx={{ width: '100%' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    sx={{
+                                                        minWidth: 0,
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        fontSize: '11px',
+                                                        lineHeight: 1.25,
+                                                    }}
+                                                >
+                                                    {isRotatorPanel ? row.rotatorName : row.rigName}
+                                                </Typography>
+                                                <Typography
+                                                    variant="caption"
+                                                    sx={{
+                                                        marginLeft: 'auto',
+                                                        color: 'text.secondary',
+                                                        fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                                                        fontFeatureSettings: '"tnum" 1',
+                                                        whiteSpace: 'nowrap',
+                                                        textAlign: 'right',
+                                                        fontSize: '12px',
+                                                        lineHeight: 1.25,
+                                                    }}
+                                                >
+                                                    {isRotatorPanel ? `Az ${az}° El ${el}°` : `Freq ${rigFrequency} Hz`}
+                                                </Typography>
+                                            </Box>
+                                            {!isRotatorPanel && (
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    sx={{
+                                                        display: 'block',
+                                                        mt: 0.15,
+                                                        fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+                                                        fontFeatureSettings: '"tnum" 1',
+                                                        fontSize: '11px',
+                                                        lineHeight: 1.25,
+                                                        whiteSpace: 'nowrap',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                    }}
+                                                >
+                                                    {`VFO1 ${rigVfo1} | VFO2 ${rigVfo2} | Df ${rigDopplerShift} | Obs ${rigDownlinkObserved}`}
+                                                </Typography>
+                                            )}
                                         </Box>
                                     )}
                                     statusChip={(
