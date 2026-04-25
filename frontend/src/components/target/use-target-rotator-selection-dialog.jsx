@@ -16,8 +16,11 @@ import {
     Stack,
     Typography,
 } from '@mui/material';
+import SettingsInputAntennaIcon from '@mui/icons-material/SettingsInputAntenna';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useSelector } from 'react-redux';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { DEFAULT_TRACKER_ID, resolveTrackerId } from './tracking-constants.js';
 
 const normalizeRotatorId = (candidate) => resolveTrackerId(candidate, '');
@@ -50,6 +53,7 @@ const deriveNextTrackerSlotId = (rows = []) => {
 
 export function useTargetRotatorSelectionDialog() {
     const { t } = useTranslation('target');
+    const navigate = useNavigate();
     const rotators = useSelector((state) => state.rotators?.rotators || []);
     const trackerInstances = useSelector((state) => state.trackerInstances?.instances || []);
     const selectedRotator = useSelector((state) => state.targetSatTrack?.selectedRotator || 'none');
@@ -82,6 +86,8 @@ export function useTargetRotatorSelectionDialog() {
     }, [selectedRotator]);
 
     const canConfirm = pendingRotatorId !== '';
+    const hasRotators = rotators.length > 0;
+    const satelliteLabel = pendingSatelliteName || t('target_rotator_dialog.this_satellite', { defaultValue: 'this satellite' });
     const rotatorNameById = React.useMemo(() => {
         const mapping = {};
         rotators.forEach((rotator) => {
@@ -195,6 +201,11 @@ export function useTargetRotatorSelectionDialog() {
         return deriveNextTrackerSlotId(usageRows);
     }, [usageByRotatorId, usageRows]);
 
+    const handleOpenRotatorSetup = React.useCallback(() => {
+        closeWithResult(null);
+        navigate('/hardware/rotator');
+    }, [closeWithResult, navigate]);
+
     const dialog = (
         <Dialog
             open={open}
@@ -221,69 +232,114 @@ export function useTargetRotatorSelectionDialog() {
                 {t('target_rotator_dialog.title', { defaultValue: 'Select Rotator' })}
             </DialogTitle>
             <DialogContent sx={{ bgcolor: 'background.paper', px: 3, py: 3 }}>
+                <Box sx={{ pt: 1.5 }}>
                 <DialogContentText sx={{ mb: 2, mt: 1 }}>
-                    {t('target_rotator_dialog.description', {
-                        defaultValue: 'Choose the rotator that will handle tracking for {{satellite}}.',
-                        satellite: pendingSatelliteName || t('target_rotator_dialog.this_satellite', { defaultValue: 'this satellite' }),
-                    })}
+                    {hasRotators ? (
+                        <Trans
+                            ns="target"
+                            i18nKey="target_rotator_dialog.description"
+                            defaults="Choose the rotator that will handle tracking for <satellite>{{satellite}}</satellite>."
+                            values={{ satellite: satelliteLabel }}
+                            components={{ satellite: <strong /> }}
+                        />
+                    ) : (
+                        <Trans
+                            ns="target"
+                            i18nKey="target_rotator_dialog.no_rotators_intro"
+                            defaults="To start tracking <satellite>{{satellite}}</satellite>, add your first rotator in Hardware settings."
+                            values={{ satellite: satelliteLabel }}
+                            components={{ satellite: <strong /> }}
+                        />
+                    )}
                 </DialogContentText>
-                <FormControl fullWidth size="small">
-                    <InputLabel id="target-rotator-select-label">
-                        {t('target_rotator_dialog.rotator_label', { defaultValue: 'Rotator' })}
-                    </InputLabel>
-                    <Select
-                        labelId="target-rotator-select-label"
-                        value={pendingRotatorId}
-                        label={t('target_rotator_dialog.rotator_label', { defaultValue: 'Rotator' })}
-                        onChange={(event) => setPendingRotatorId(normalizeRotatorId(event.target.value))}
+                {hasRotators ? (
+                    <>
+                        <FormControl fullWidth size="small">
+                            <InputLabel id="target-rotator-select-label">
+                                {t('target_rotator_dialog.rotator_label', { defaultValue: 'Rotator' })}
+                            </InputLabel>
+                            <Select
+                                labelId="target-rotator-select-label"
+                                value={pendingRotatorId}
+                                label={t('target_rotator_dialog.rotator_label', { defaultValue: 'Rotator' })}
+                                onChange={(event) => setPendingRotatorId(normalizeRotatorId(event.target.value))}
+                            >
+                                {rotators.map((rotator) => {
+                                    const rotatorUsage = usageByRotatorId[String(rotator.id)] || [];
+                                    const usageSummary = rotatorUsage.length
+                                        ? rotatorUsage
+                                            .map((row) => `T${row.targetNumber}${row.noradId ? `→${row.noradId}` : ''}`)
+                                            .join(', ')
+                                        : 'unassigned';
+                                    const statusSummary = rotatorUsage.length
+                                        ? rotatorUsage
+                                            .map((row) => `T${row.targetNumber}:${row.statusLabel}`)
+                                            .join(' | ')
+                                        : 'available';
+                                    const statusColor = rotatorUsage.length === 1
+                                        ? (rotatorUsage[0].statusColor || 'default')
+                                        : 'default';
+                                    return (
+                                        <MenuItem key={rotator.id} value={rotator.id} sx={{ alignItems: 'flex-start', py: 0.75 }}>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, width: '100%' }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                        {rotator.name}
+                                                    </Typography>
+                                                    <Chip
+                                                        size="small"
+                                                        color={statusColor}
+                                                        variant="outlined"
+                                                        label={statusSummary}
+                                                        sx={{ height: 18, '& .MuiChip-label': { px: 0.7, fontSize: '0.62rem' } }}
+                                                    />
+                                                </Box>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {`${rotator.host}:${rotator.port} • ${usageSummary}`}
+                                                </Typography>
+                                            </Box>
+                                        </MenuItem>
+                                    );
+                                })}
+                            </Select>
+                        </FormControl>
+                    </>
+                ) : (
+                    <Box
+                        sx={{
+                            mt: 1,
+                            border: '1px dashed',
+                            borderColor: 'border.main',
+                            borderRadius: 2,
+                            px: 2,
+                            py: 2.2,
+                            bgcolor: 'overlay.light',
+                            textAlign: 'center',
+                        }}
                     >
-                        {rotators.map((rotator) => {
-                            const rotatorUsage = usageByRotatorId[String(rotator.id)] || [];
-                            const usageSummary = rotatorUsage.length
-                                ? rotatorUsage
-                                    .map((row) => `T${row.targetNumber}${row.noradId ? `→${row.noradId}` : ''}`)
-                                    .join(', ')
-                                : 'unassigned';
-                            const statusSummary = rotatorUsage.length
-                                ? rotatorUsage
-                                    .map((row) => `T${row.targetNumber}:${row.statusLabel}`)
-                                    .join(' | ')
-                                : 'available';
-                            const statusColor = rotatorUsage.length === 1
-                                ? (rotatorUsage[0].statusColor || 'default')
-                                : 'default';
-                            return (
-                                <MenuItem key={rotator.id} value={rotator.id} sx={{ alignItems: 'flex-start', py: 0.75 }}>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, width: '100%' }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                {rotator.name}
-                                            </Typography>
-                                            <Chip
-                                                size="small"
-                                                color={statusColor}
-                                                variant="outlined"
-                                                label={statusSummary}
-                                                sx={{ height: 18, '& .MuiChip-label': { px: 0.7, fontSize: '0.62rem' } }}
-                                            />
-                                        </Box>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {`${rotator.host}:${rotator.port} • ${usageSummary}`}
-                                        </Typography>
-                                    </Box>
-                                </MenuItem>
-                            );
-                        })}
-                    </Select>
-                </FormControl>
-                {rotators.length === 0 && (
-                    <DialogContentText sx={{ mt: 2 }} color="warning.main">
-                        {t('target_rotator_dialog.no_rotators', {
-                            defaultValue: 'No rotators configured. Add a rotator first to set a target.',
-                        })}
-                    </DialogContentText>
+                        <SettingsInputAntennaIcon sx={{ fontSize: 32, color: 'warning.main', mb: 1 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            {t('target_rotator_dialog.no_rotators_title', { defaultValue: 'No rotators are set up yet' })}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                            {t('target_rotator_dialog.no_rotators', {
+                                defaultValue: 'Add a rotator in Hardware > Rotators, then come back to assign it to this target.',
+                            })}
+                        </Typography>
+                        <Stack spacing={0.6} sx={{ alignItems: 'flex-start', maxWidth: 360, mx: 'auto', textAlign: 'left' }}>
+                            <Typography variant="caption" color="text.secondary">
+                                {t('target_rotator_dialog.no_rotators_step_1', { defaultValue: '1. Open Hardware > Rotators' })}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {t('target_rotator_dialog.no_rotators_step_2', { defaultValue: '2. Add and save your rotator connection' })}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {t('target_rotator_dialog.no_rotators_step_3', { defaultValue: '3. Return here and select it for tracking' })}
+                            </Typography>
+                        </Stack>
+                    </Box>
                 )}
-                {usageRows.length > 0 && (
+                {hasRotators && usageRows.length > 0 && (
                     <Box sx={{ mt: 2 }}>
                         <Divider sx={{ mb: 1.5 }} />
                         <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
@@ -335,6 +391,7 @@ export function useTargetRotatorSelectionDialog() {
                         </Stack>
                     </Box>
                 )}
+                </Box>
             </DialogContent>
             <DialogActions
                 sx={{
@@ -358,19 +415,30 @@ export function useTargetRotatorSelectionDialog() {
                 >
                     {t('target_rotator_dialog.cancel', { defaultValue: 'Cancel' })}
                 </Button>
-                <Button
-                    color="success"
-                    variant="contained"
-                    disabled={!canConfirm}
-                    onClick={() =>
-                        closeWithResult({
-                            rotatorId: pendingRotatorId,
-                            trackerId: resolveTrackerIdForRotator(pendingRotatorId),
-                        })
-                    }
-                >
-                    {t('target_rotator_dialog.confirm', { defaultValue: 'Set Target' })}
-                </Button>
+                {hasRotators ? (
+                    <Button
+                        color="success"
+                        variant="contained"
+                        disabled={!canConfirm}
+                        onClick={() =>
+                            closeWithResult({
+                                rotatorId: pendingRotatorId,
+                                trackerId: resolveTrackerIdForRotator(pendingRotatorId),
+                            })
+                        }
+                    >
+                        {t('target_rotator_dialog.confirm', { defaultValue: 'Set Target' })}
+                    </Button>
+                ) : (
+                    <Button
+                        color="primary"
+                        variant="contained"
+                        onClick={handleOpenRotatorSetup}
+                        startIcon={<OpenInNewIcon />}
+                    >
+                        {t('target_rotator_dialog.open_rotator_setup', { defaultValue: 'Open Rotator Setup' })}
+                    </Button>
+                )}
             </DialogActions>
         </Dialog>
     );

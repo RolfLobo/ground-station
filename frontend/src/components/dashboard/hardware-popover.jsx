@@ -66,6 +66,18 @@ const HardwareSettingsPopover = () => {
     const trackerCommandsById = useSelector((state) => state.targetSatTrack?.trackerCommandsById || {});
     const rotators = useSelector((state) => state.rotators?.rotators || []);
     const rigs = useSelector((state) => state.rigs?.rigs || []);
+    const hasConfiguredTargets = React.useMemo(() => {
+        const instances = Array.isArray(trackerInstances) ? trackerInstances : [];
+        if (instances.length === 0) return false;
+        return instances.some((instance) => {
+            const instanceTrackerId = instance?.tracker_id || '';
+            const view = trackerViews?.[instanceTrackerId] || {};
+            const details = view?.satelliteData?.details || {};
+            const tracking = view?.trackingState || {};
+            const noradId = details?.norad_id ?? tracking?.norad_id ?? null;
+            return !['', 'none', null, undefined].includes(noradId);
+        });
+    }, [trackerInstances, trackerViews]);
 
     // Keep selector output primitive/lightweight to reduce unnecessary re-renders.
     const hardwareState = useSelector((state) => {
@@ -129,6 +141,7 @@ const HardwareSettingsPopover = () => {
 
     // Determine colors based on connection and tracking status
     const getRigColor = () => {
+        if (!hasConfiguredTargets) return 'text.disabled'; // Grey when there are no targets configured
         if (!connected) return 'text.disabled'; // Grey when socket disconnected
         if (!hardwareState.rigConnected) return 'status.disconnected'; // Red for disconnected
         if (hardwareState.rigTracking) return 'success.light'; // Green for tracking
@@ -137,6 +150,7 @@ const HardwareSettingsPopover = () => {
     };
 
     const getRotatorColor = () => {
+        if (!hasConfiguredTargets) return 'text.disabled'; // Grey when there are no targets configured
         if (!connected) return 'text.disabled'; // Grey when socket disconnected
         if (!hardwareState.rotatorConnected) return 'status.disconnected'; // Red for disconnected
         if (hardwareState.rotatorOutOfBounds) return 'secondary.main'; // Purple for out of bounds
@@ -148,6 +162,7 @@ const HardwareSettingsPopover = () => {
     };
 
     const getRigTooltip = () => {
+        if (!hasConfiguredTargets) return t('hardware_popover.no_targets_configured', { defaultValue: 'No targets configured' });
         if (!connected) return t('hardware_popover.socket_disconnected');
         if (!hardwareState.rigConnected) return t('hardware_popover.rig_disconnected');
         if (hardwareState.rigTracking) return t('hardware_popover.rig_tracking', { frequency: hardwareState.rigFrequency });
@@ -156,6 +171,7 @@ const HardwareSettingsPopover = () => {
     };
 
     const getRotatorTooltip = () => {
+        if (!hasConfiguredTargets) return t('hardware_popover.no_targets_configured', { defaultValue: 'No targets configured' });
         if (!connected) return t('hardware_popover.socket_disconnected');
         if (!hardwareState.rotatorConnected) return t('hardware_popover.rotator_disconnected');
         if (hardwareState.rotatorTracking) return t('hardware_popover.rotator_tracking', { az: hardwareState.rotatorAz, el: hardwareState.rotatorEl });
@@ -166,6 +182,7 @@ const HardwareSettingsPopover = () => {
 
     // Get overlay icon and color for rotator
     const getRotatorOverlay = () => {
+        if (!hasConfiguredTargets) return null; // No overlay when there are no targets configured
         if (!connected) return null; // No overlay when socket disconnected
         if (!hardwareState.rotatorConnected) return {
             icon: CloseIcon,
@@ -216,6 +233,7 @@ const HardwareSettingsPopover = () => {
 
     // Get overlay icon and color for the rig
     const getRigOverlay = () => {
+        if (!hasConfiguredTargets) return null; // No overlay when there are no targets configured
         if (!connected) return null; // No overlay when socket disconnected
         if (!hardwareState.rigConnected) return {
             icon: CloseIcon,
