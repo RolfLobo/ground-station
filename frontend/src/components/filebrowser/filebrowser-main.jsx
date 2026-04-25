@@ -112,6 +112,8 @@ import MeteorM2xLrptFolderDialog from './meteor-m2x-lrpt-folder-dialog.jsx';
 import MeteorHrptFolderDialog from './meteor-hrpt-folder-dialog.jsx';
 import ProcessingDialog from './processing-dialog.jsx';
 import ZoomableImage from '../common/zoomable-image.jsx';
+import DecodedFolderThumbnail from './decoded-folder-thumbnail.jsx';
+import { buildFileBrowserDisplayItem } from './filebrowser-display-item.js';
 
 function formatBytes(bytes) {
     if (bytes === 0) return '0 Bytes';
@@ -374,32 +376,7 @@ export default function FilebrowserMain() {
     // Sort, paginate, and format files in the frontend
     const displayItems = useMemo(() => {
         // First, add display properties
-        let processedFiles = files.map(item => {
-            const isRecording = item.type === 'recording';
-            const duration = isRecording && item.metadata?.start_time
-                ? formatDuration(item.metadata.start_time, item.metadata.finalized_time)
-                : null;
-
-            // Determine if decoded file is an image
-            const isImage = item.type === 'decoded' && item.file_type &&
-                ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(item.file_type.toLowerCase());
-
-            // Check if audio recording is in progress
-            const isAudioRecording = item.type === 'audio';
-            const audioRecordingInProgress = isAudioRecording && item.status === 'recording';
-
-            return {
-                ...item,
-                displayName: item.name || item.filename || item.foldername,
-                image: item.type === 'recording'
-                    ? (item.recording_in_progress ? null : item.snapshot?.url)
-                    : item.type === 'decoded_folder'
-                    ? item.thumbnail_url
-                    : (item.type === 'snapshot' || isImage ? item.url : null),
-                duration,
-                audioRecordingInProgress,
-            };
-        });
+        let processedFiles = files.map(item => buildFileBrowserDisplayItem(item, formatDuration));
 
         // Apply sorting
         const reverse = sortOrder === 'desc';
@@ -1051,15 +1028,22 @@ export default function FilebrowserMain() {
                             >
                                     {item.image ? (
                                         <Box sx={{ position: 'relative' }}>
-                                            <CardMedia
-                                                component="img"
-                                                height="200"
-                                                image={item.image}
-                                                alt={item.displayName}
-                                                sx={{
-                                                    objectFit: 'cover',
-                                                }}
-                                            />
+                                            {item.type === 'decoded_folder' ? (
+                                                <DecodedFolderThumbnail
+                                                    image={item.image}
+                                                    alt={item.displayName}
+                                                />
+                                            ) : (
+                                                <CardMedia
+                                                    component="img"
+                                                    height="200"
+                                                    image={item.image}
+                                                    alt={item.displayName}
+                                                    sx={{
+                                                        objectFit: 'cover',
+                                                    }}
+                                                />
+                                            )}
                                             {/* Selection checkbox overlay (top-left when in selection mode) */}
                                             {selectionMode && (
                                                 <Box
