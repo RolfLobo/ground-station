@@ -20,11 +20,11 @@
 import Stack from "@mui/material/Stack";
 import * as React from "react";
 import {
-    Box, Button, Chip, IconButton, Typography,
+    Badge, Box, Button, Chip, IconButton, Typography,
 } from "@mui/material";
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useSocket} from "../common/socket.jsx";
-import {shallowEqual, useDispatch, useSelector} from "react-redux";
+import {useDispatch, useSelector} from "react-redux";
 import Tooltip from "@mui/material/Tooltip";
 import { useTranslation } from 'react-i18next';
 import RadioIcon from '@mui/icons-material/Radio';
@@ -32,16 +32,6 @@ import {
     Popover,
 } from '@mui/material';
 import {SatelliteIcon} from "hugeicons-react";
-import OverlayIcon from "./icons-overlay.jsx";
-
-// Import overlay icons
-import CloseIcon from '@mui/icons-material/Close';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import WarningIcon from '@mui/icons-material/Warning';
-import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
-import PauseIcon from '@mui/icons-material/Pause';
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import LocalParkingIcon from '@mui/icons-material/LocalParking';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
@@ -49,6 +39,11 @@ import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined';
 import { setTrackerId, setTrackingStateInBackend } from "../target/target-slice.jsx";
 import { TRACKER_COMMAND_STATUS } from "../target/tracking-constants.js";
 import FleetTargetRow from "../common/fleet-target-row.jsx";
+
+const hasAssignedHardwareId = (value) => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return !['', 'none', 'null', 'undefined'].includes(normalized);
+};
 
 const HardwareSettingsPopover = () => {
     const dispatch = useDispatch();
@@ -83,28 +78,6 @@ const HardwareSettingsPopover = () => {
             return !['', 'none', null, undefined].includes(noradId);
         });
     }, [trackerInstances, trackerViews]);
-
-    // Keep selector output primitive/lightweight to reduce unnecessary re-renders.
-    const hardwareState = useSelector((state) => {
-        const selectedTrackerView = (trackerId && trackerViews?.[trackerId]) || null;
-        const rigData = selectedTrackerView?.rigData || state.targetSatTrack?.rigData || {};
-        const rotatorData = selectedTrackerView?.rotatorData || state.targetSatTrack?.rotatorData || {};
-        return {
-            rigConnected: Boolean(rigData.connected),
-            rigTracking: Boolean(rigData.tracking),
-            rigStopped: Boolean(rigData.stopped),
-            rigFrequency: rigData.frequency,
-            rotatorConnected: Boolean(rotatorData.connected),
-            rotatorOutOfBounds: Boolean(rotatorData.outofbounds),
-            rotatorMinElevation: Boolean(rotatorData.minelevation),
-            rotatorSlewing: Boolean(rotatorData.slewing),
-            rotatorTracking: Boolean(rotatorData.tracking),
-            rotatorStopped: Boolean(rotatorData.stopped),
-            rotatorParked: Boolean(rotatorData.parked),
-            rotatorAz: Number.isFinite(rotatorData.az) ? Math.round(rotatorData.az * 10) / 10 : rotatorData.az,
-            rotatorEl: Number.isFinite(rotatorData.el) ? Math.round(rotatorData.el * 10) / 10 : rotatorData.el,
-        };
-    }, shallowEqual);
 
     // Socket connection event handlers
     useEffect(() => {
@@ -144,127 +117,103 @@ const HardwareSettingsPopover = () => {
         setActiveIcon(null);
     };
 
-    // Determine colors based on connection and tracking status
-    const getRigColor = () => {
-        if (!hasConfiguredTargets) return 'text.disabled'; // Grey when there are no targets configured
-        if (!connected) return 'text.disabled'; // Grey when socket disconnected
-        if (!hardwareState.rigConnected) return 'status.disconnected'; // Red for disconnected
-        if (hardwareState.rigTracking) return 'success.light'; // Green for tracking
-        if (hardwareState.rigStopped) return 'warning.dark'; // Orange for stopped
-        return 'success.dark'; // Green for connected but not tracking
-    };
+    const fleetHardwareSummary = React.useMemo(() => {
+        const summary = {
+            rotator: {
+                activeCount: 0,
+                warningCount: 0,
+                disconnectedCount: 0,
+                assignedCount: 0,
+                issueCount: 0,
+            },
+            rig: {
+                activeCount: 0,
+                warningCount: 0,
+                disconnectedCount: 0,
+                assignedCount: 0,
+                issueCount: 0,
+            },
+        };
 
-    const getRotatorColor = () => {
-        if (!hasConfiguredTargets) return 'text.disabled'; // Grey when there are no targets configured
-        if (!connected) return 'text.disabled'; // Grey when socket disconnected
-        if (!hardwareState.rotatorConnected) return 'status.disconnected'; // Red for disconnected
-        if (hardwareState.rotatorOutOfBounds) return 'secondary.main'; // Purple for out of bounds
-        if (hardwareState.rotatorMinElevation) return 'error.light'; // Light red for min elevation
-        if (hardwareState.rotatorSlewing) return 'warning.main'; // Orange for slewing
-        if (hardwareState.rotatorTracking) return 'success.light'; // Light green for tracking
-        if (hardwareState.rotatorStopped) return 'warning.dark'; // Orange for stopped
-        return 'success.dark'; // Green for connected but not tracking
-    };
+        trackerInstances.forEach((instance) => {
+            const instanceTrackerId = instance?.tracker_id || '';
+            const view = trackerViews?.[instanceTrackerId] || {};
+            const trackingState = view?.trackingState || instance?.tracking_state || {};
+            const rotatorData = view?.rotatorData || {};
+            const rigData = view?.rigData || {};
+
+            const rotatorId = view?.selectedRotator ?? trackingState?.rotator_id ?? instance?.rotator_id ?? 'none';
+            const hasRotatorAssigned = hasAssignedHardwareId(rotatorId);
+            if (hasRotatorAssigned) {
+                summary.rotator.assignedCount += 1;
+                const rotatorDisconnected = rotatorData?.connected === false || trackingState?.rotator_state === 'disconnected';
+                const rotatorWarning = Boolean(
+                    rotatorData?.outofbounds
+                    || rotatorData?.minelevation
+                    || rotatorData?.parked
+                    || rotatorData?.stopped
+                );
+                const rotatorActive = Boolean(rotatorData?.tracking || rotatorData?.slewing);
+                if (rotatorActive) summary.rotator.activeCount += 1;
+                if (rotatorDisconnected) summary.rotator.disconnectedCount += 1;
+                else if (rotatorWarning) summary.rotator.warningCount += 1;
+            }
+
+            const rigId = view?.selectedRadioRig ?? trackingState?.rig_id ?? instance?.rig_id ?? 'none';
+            const hasRigAssigned = hasAssignedHardwareId(rigId);
+            if (hasRigAssigned) {
+                summary.rig.assignedCount += 1;
+                const rigDisconnected = rigData?.connected === false || trackingState?.rig_state === 'disconnected';
+                const rigWarning = Boolean(rigData?.stopped);
+                const rigActive = Boolean(rigData?.tracking);
+                if (rigActive) summary.rig.activeCount += 1;
+                if (rigDisconnected) summary.rig.disconnectedCount += 1;
+                else if (rigWarning) summary.rig.warningCount += 1;
+            }
+        });
+
+        summary.rotator.issueCount = summary.rotator.warningCount + summary.rotator.disconnectedCount;
+        summary.rig.issueCount = summary.rig.warningCount + summary.rig.disconnectedCount;
+        return summary;
+    }, [trackerInstances, trackerViews]);
+
+    const getFleetIconColor = useCallback((summaryByType) => {
+        if (!hasConfiguredTargets) return 'text.disabled';
+        if (!connected) return 'text.disabled';
+        if (summaryByType.activeCount > 0) return 'success.main';
+        return 'text.secondary';
+    }, [connected, hasConfiguredTargets]);
+
+    const getFleetBadgeColor = useCallback((summaryByType) => {
+        if (summaryByType.disconnectedCount > 0) return 'error';
+        if (summaryByType.warningCount > 0) return 'warning';
+        return 'default';
+    }, []);
+
+    const getRigColor = () => getFleetIconColor(fleetHardwareSummary.rig);
+    const getRotatorColor = () => getFleetIconColor(fleetHardwareSummary.rotator);
 
     const getRigTooltip = () => {
         if (!hasConfiguredTargets) return t('hardware_popover.no_targets_configured', { defaultValue: 'No targets configured' });
         if (!connected) return t('hardware_popover.socket_disconnected');
-        if (!hardwareState.rigConnected) return t('hardware_popover.rig_disconnected');
-        if (hardwareState.rigTracking) return t('hardware_popover.rig_tracking', { frequency: hardwareState.rigFrequency });
-        if (hardwareState.rigStopped) return t('hardware_popover.rig_stopped');
-        return t('hardware_popover.rig_connected');
+        return t('hardware_popover.rig_fleet_summary', {
+            defaultValue: 'Rig fleet: {{active}} active, {{attention}} attention, {{disconnected}} disconnected',
+            active: fleetHardwareSummary.rig.activeCount,
+            attention: fleetHardwareSummary.rig.warningCount,
+            disconnected: fleetHardwareSummary.rig.disconnectedCount,
+        });
     };
 
     const getRotatorTooltip = () => {
         if (!hasConfiguredTargets) return t('hardware_popover.no_targets_configured', { defaultValue: 'No targets configured' });
         if (!connected) return t('hardware_popover.socket_disconnected');
-        if (!hardwareState.rotatorConnected) return t('hardware_popover.rotator_disconnected');
-        if (hardwareState.rotatorTracking) return t('hardware_popover.rotator_tracking', { az: hardwareState.rotatorAz, el: hardwareState.rotatorEl });
-        if (hardwareState.rotatorSlewing) return t('hardware_popover.rotator_slewing', { az: hardwareState.rotatorAz, el: hardwareState.rotatorEl });
-        if (hardwareState.rotatorStopped) return t('hardware_popover.rotator_stopped', { az: hardwareState.rotatorAz, el: hardwareState.rotatorEl });
-        return t('hardware_popover.rotator_connected', { az: hardwareState.rotatorAz, el: hardwareState.rotatorEl });
+        return t('hardware_popover.rotator_fleet_summary', {
+            defaultValue: 'Rotator fleet: {{active}} active, {{attention}} attention, {{disconnected}} disconnected',
+            active: fleetHardwareSummary.rotator.activeCount,
+            attention: fleetHardwareSummary.rotator.warningCount,
+            disconnected: fleetHardwareSummary.rotator.disconnectedCount,
+        });
     };
-
-    // Get overlay icon and color for rotator
-    const getRotatorOverlay = () => {
-        if (!hasConfiguredTargets) return null; // No overlay when there are no targets configured
-        if (!connected) return null; // No overlay when socket disconnected
-        if (!hardwareState.rotatorConnected) return {
-            icon: CloseIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'status.disconnected',
-            badgeBorderColor: "text.primary"
-        };
-        if (hardwareState.rotatorParked) return {
-            icon: LocalParkingIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'warning.main',
-            badgeBorderColor: "text.primary"
-        };
-        if (hardwareState.rotatorOutOfBounds) return {
-            icon: WarningIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'error.main',
-            badgeBorderColor: "text.primary"
-        };
-        if (hardwareState.rotatorMinElevation) return {
-            icon: ArrowDownwardIcon,
-            color: 'error.main',
-            badgeBackgroundColor: 'text.primary',
-            badgeBorderColor: "error.main"
-        };
-        if (hardwareState.rotatorSlewing) return {
-            icon: PlayArrowIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'success.main',
-            badgeBorderColor: "text.primary"
-        };
-        if (hardwareState.rotatorTracking) return {
-            icon: LocationSearchingIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'info.main',
-            badgeBorderColor: "info.main"
-        };
-        if (hardwareState.rotatorStopped) return {
-            icon: PauseIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'warning.main',
-            badgeBorderColor: "text.primary"
-        };
-
-        // No overlay for "connected" states
-        return null;
-    };
-
-    // Get overlay icon and color for the rig
-    const getRigOverlay = () => {
-        if (!hasConfiguredTargets) return null; // No overlay when there are no targets configured
-        if (!connected) return null; // No overlay when socket disconnected
-        if (!hardwareState.rigConnected) return {
-            icon: CloseIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'status.disconnected',
-            badgeBorderColor: "text.primary"
-        };
-        if (hardwareState.rigTracking) return {
-            icon: LocationSearchingIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'info.main',
-            badgeBorderColor: "info.main"
-        };
-        if (hardwareState.rigStopped) return {
-            icon: PauseIcon,
-            color: 'text.primary',
-            badgeBackgroundColor: 'warning.main',
-            badgeBorderColor: "text.primary"
-        };
-
-        // No overlay for "connected" state
-        return null;
-    };
-
-    const rotatorOverlay = getRotatorOverlay();
-    const rigOverlay = getRigOverlay();
     const rotatorNameById = React.useMemo(() => {
         const entries = Array.isArray(rotators) ? rotators : [];
         return entries.reduce((acc, rotator) => {
@@ -607,21 +556,26 @@ const HardwareSettingsPopover = () => {
                     sx={{
                         width: 40, color: getRotatorColor(), '&:hover': {
                             backgroundColor: 'overlay.light'
-                        }, '& svg': {
-                            height: '100%',
                         }
                     }}
                 >
-                    <OverlayIcon
-                        BaseIcon={SatelliteIcon}
-                        OverlayIcon={rotatorOverlay?.icon}
-                        overlayColor={rotatorOverlay?.color}
-                        overlayPosition="bottom-right"
-                        overlaySize={0.9}
-                        fontSize="small"
-                        badgeBackgroundColor={rotatorOverlay?.badgeBackgroundColor}
-                        badgeBorderColor={rotatorOverlay?.badgeBorderColor}
-                    />
+                    <Badge
+                        badgeContent={fleetHardwareSummary.rotator.issueCount > 0 ? fleetHardwareSummary.rotator.issueCount : null}
+                        color={getFleetBadgeColor(fleetHardwareSummary.rotator)}
+                        max={99}
+                        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                        sx={{
+                            '& .MuiBadge-badge': {
+                                minWidth: 14,
+                                height: 14,
+                                px: 0.45,
+                                fontSize: '0.58rem',
+                                fontWeight: 700,
+                            },
+                        }}
+                    >
+                        <SatelliteIcon style={{ width: 22, height: 22 }} />
+                    </Badge>
                 </IconButton>
             </Tooltip>
             <Tooltip title={getRigTooltip()}>
@@ -632,22 +586,17 @@ const HardwareSettingsPopover = () => {
                     sx={{
                         width: 40, color: getRigColor(), '&:hover': {
                             backgroundColor: 'overlay.light'
-                        }, '& svg': {
-                            height: '100%',
-                            width: '80%',
                         }
                     }}
                 >
-                    <OverlayIcon
-                        BaseIcon={RadioIcon}
-                        OverlayIcon={rigOverlay?.icon}
-                        overlayColor={rigOverlay?.color}
-                        overlayPosition="bottom-right"
-                        overlaySize={0.9}
-                        fontSize="small"
-                        badgeBackgroundColor={rigOverlay?.badgeBackgroundColor}
-                        badgeBorderColor={rigOverlay?.badgeBorderColor}
-                    />
+                    <Badge
+                        badgeContent={fleetHardwareSummary.rig.issueCount > 0 ? fleetHardwareSummary.rig.issueCount : null}
+                        color={getFleetBadgeColor(fleetHardwareSummary.rig)}
+                        max={99}
+                        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                    >
+                        <RadioIcon sx={{ fontSize: 22 }} />
+                    </Badge>
                 </IconButton>
             </Tooltip>
         </Stack>

@@ -45,6 +45,12 @@ import { useSocket } from "../common/socket.jsx";
 import { useTranslation } from 'react-i18next';
 import CloseIcon from '@mui/icons-material/Close';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
+import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import LocalParkingIcon from '@mui/icons-material/LocalParking';
+import WarningIcon from '@mui/icons-material/Warning';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import {
     setAvailableTransmitters,
     setRadioRig,
@@ -84,6 +90,212 @@ const deriveNextTrackerSlotId = (instances = []) => {
         nextTargetNumber += 1;
     }
     return `target-${nextTargetNumber}`;
+};
+
+const NONE_ID_VALUES = ['', 'none', null, undefined];
+
+const resolveRotatorLedState = ({ rotatorId, rotatorData, trackingState }) => {
+    if (NONE_ID_VALUES.includes(rotatorId)) {
+        return {
+            source: 'rotator',
+            status: 'none',
+            label: 'No rotator',
+            bgColor: 'action.disabled',
+            borderColor: 'action.disabledBackground',
+            Icon: null,
+            iconColor: 'text.disabled',
+        };
+    }
+    if (rotatorData?.connected === false || trackingState?.rotator_state === 'disconnected') {
+        return {
+            source: 'rotator',
+            status: 'disconnected',
+            label: 'Rotator disconnected',
+            bgColor: 'status.disconnected',
+            borderColor: 'status.disconnected',
+            Icon: CloseIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rotatorData?.parked === true || trackingState?.rotator_state === 'parked') {
+        return {
+            source: 'rotator',
+            status: 'parked',
+            label: 'Rotator parked',
+            bgColor: 'warning.main',
+            borderColor: 'warning.dark',
+            Icon: LocalParkingIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rotatorData?.outofbounds === true) {
+        return {
+            source: 'rotator',
+            status: 'outofbounds',
+            label: 'Rotator out of bounds',
+            bgColor: 'secondary.main',
+            borderColor: 'secondary.dark',
+            Icon: WarningIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rotatorData?.minelevation === true) {
+        return {
+            source: 'rotator',
+            status: 'minelevation',
+            label: 'Below minimum elevation',
+            bgColor: 'error.light',
+            borderColor: 'error.main',
+            Icon: ArrowDownwardIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rotatorData?.slewing === true) {
+        return {
+            source: 'rotator',
+            status: 'slewing',
+            label: 'Rotator slewing',
+            bgColor: 'warning.main',
+            borderColor: 'warning.dark',
+            Icon: PlayArrowIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rotatorData?.tracking === true || trackingState?.rotator_state === 'tracking') {
+        return {
+            source: 'rotator',
+            status: 'tracking',
+            label: 'Rotator tracking',
+            bgColor: 'success.light',
+            borderColor: 'success.main',
+            Icon: LocationSearchingIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rotatorData?.stopped === true || trackingState?.rotator_state === 'stopped') {
+        return {
+            source: 'rotator',
+            status: 'stopped',
+            label: 'Rotator stopped',
+            bgColor: 'warning.dark',
+            borderColor: 'warning.main',
+            Icon: PauseIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rotatorData?.connected === true || trackingState?.rotator_state === 'connected') {
+        return {
+            source: 'rotator',
+            status: 'connected',
+            label: 'Rotator connected',
+            bgColor: 'success.dark',
+            borderColor: 'success.main',
+            Icon: null,
+            iconColor: 'common.white',
+        };
+    }
+    return {
+        source: 'rotator',
+        status: 'unknown',
+        label: 'Rotator status unknown',
+        bgColor: 'action.disabled',
+        borderColor: 'action.disabledBackground',
+        Icon: null,
+        iconColor: 'text.disabled',
+    };
+};
+
+const resolveRigLedState = ({ rigId, rigData, trackingState }) => {
+    if (NONE_ID_VALUES.includes(rigId)) {
+        return {
+            source: 'rig',
+            status: 'none',
+            label: 'No rig',
+            bgColor: 'action.disabled',
+            borderColor: 'action.disabledBackground',
+            Icon: null,
+            iconColor: 'text.disabled',
+        };
+    }
+    if (rigData?.connected === false || trackingState?.rig_state === 'disconnected') {
+        return {
+            source: 'rig',
+            status: 'disconnected',
+            label: 'Rig disconnected',
+            bgColor: 'status.disconnected',
+            borderColor: 'status.disconnected',
+            Icon: CloseIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rigData?.tracking === true || trackingState?.rig_state === 'tracking') {
+        return {
+            source: 'rig',
+            status: 'tracking',
+            label: 'Rig tracking',
+            bgColor: 'success.light',
+            borderColor: 'success.main',
+            Icon: LocationSearchingIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rigData?.stopped === true || trackingState?.rig_state === 'stopped') {
+        return {
+            source: 'rig',
+            status: 'stopped',
+            label: 'Rig stopped',
+            bgColor: 'warning.dark',
+            borderColor: 'warning.main',
+            Icon: PauseIcon,
+            iconColor: 'common.white',
+        };
+    }
+    if (rigData?.connected === true || trackingState?.rig_state === 'connected') {
+        return {
+            source: 'rig',
+            status: 'connected',
+            label: 'Rig connected',
+            bgColor: 'success.dark',
+            borderColor: 'success.main',
+            Icon: null,
+            iconColor: 'common.white',
+        };
+    }
+    return {
+        source: 'rig',
+        status: 'unknown',
+        label: 'Rig status unknown',
+        bgColor: 'action.disabled',
+        borderColor: 'action.disabledBackground',
+        Icon: null,
+        iconColor: 'text.disabled',
+    };
+};
+
+const resolveTabHardwareLedState = ({ rotatorId, rigId, rotatorData, rigData, trackingState }) => {
+    const rotatorLed = resolveRotatorLedState({ rotatorId, rotatorData, trackingState });
+    const rigLed = resolveRigLedState({ rigId, rigData, trackingState });
+    const shouldFallbackToRig = (
+        (rotatorLed.status === 'none' || rotatorLed.status === 'disconnected')
+        && !['none', 'unknown'].includes(rigLed.status)
+    );
+    if (shouldFallbackToRig) {
+        return {
+            ...rigLed,
+            label: `${rigLed.label} (rig fallback)`,
+            fallbackSource: 'rig',
+        };
+    }
+    if (rotatorLed.status !== 'none' && rotatorLed.status !== 'unknown') {
+        return {
+            ...rotatorLed,
+            fallbackSource: 'rotator',
+        };
+    }
+    return {
+        ...rigLed,
+        fallbackSource: 'rig',
+    };
 };
 
 const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBar() {
@@ -398,15 +610,26 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
         const targetNumber = parsedTargetNumber != null ? Number(parsedTargetNumber) : null;
         const isObservationTracker = parsedTargetNumber == null;
         const view = trackerViews?.[instanceTrackerId] || {};
+        const effectiveTrackingState = view?.trackingState || instance?.tracking_state || {};
+        const rotatorData = view?.rotatorData || {};
+        const rigData = view?.rigData || {};
         const satName = view?.satelliteData?.details?.name || 'No satellite';
-        const satNorad = view?.trackingState?.norad_id || 'none';
-        const rotatorId = view?.selectedRotator || instance?.rotator_id || 'none';
+        const satNorad = effectiveTrackingState?.norad_id || 'none';
+        const rotatorId = view?.selectedRotator || instance?.rotator_id || effectiveTrackingState?.rotator_id || 'none';
+        const rigId = view?.selectedRadioRig || instance?.rig_id || effectiveTrackingState?.rig_id || 'none';
         const rotatorName = String(rotatorId) === 'none'
             ? 'No rotator'
             : (rotatorRows.find((row) => String(row.id) === String(rotatorId))?.name || String(rotatorId));
-        const isTracking = Boolean(view?.rigData?.tracking || view?.rotatorData?.tracking);
+        const isTracking = Boolean(rigData?.tracking || rotatorData?.tracking);
         const satAz = Number.isFinite(view?.satelliteData?.position?.az) ? view.satelliteData.position.az : null;
         const satEl = Number.isFinite(view?.satelliteData?.position?.el) ? view.satelliteData.position.el : null;
+        const tabHardwareLed = resolveTabHardwareLedState({
+            rotatorId,
+            rigId,
+            rotatorData,
+            rigData,
+            trackingState: effectiveTrackingState,
+        });
         const linkedObservations = schedulerObservations
             .filter((obs) => obs?.enabled)
             .filter((obs) => {
@@ -429,8 +652,10 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
             satName,
             satNorad,
             rotatorId,
+            rigId,
             rotatorName,
             isTracking,
+            tabHardwareLed,
             satAz,
             satEl,
             runningObsCount: runningObs.length,
@@ -1124,10 +1349,12 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
                                     `${option.satName}`,
                                     `NORAD ${option.satNorad}`,
                                     `Rotator ${option.rotatorName}`,
+                                    `HW ${option.tabHardwareLed?.label || 'Unknown'}`,
                                 ];
                                 if (option.runningObsCount > 0) {
                                     tooltipLines.push(`Obs running: ${option.runningObsCount}`);
                                 }
+                                const TabHardwareLedIcon = option.tabHardwareLed?.Icon;
                                 return (
                                     <Tab
                                         key={option.trackerId}
@@ -1143,10 +1370,24 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
                                                             width: 16,
                                                             height: 16,
                                                             borderRadius: '50%',
-                                                            bgcolor: option.isTracking ? 'success.light' : 'action.disabled',
+                                                            bgcolor: option.tabHardwareLed?.bgColor || 'action.disabled',
+                                                            border: '1px solid',
+                                                            borderColor: option.tabHardwareLed?.borderColor || 'action.disabledBackground',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
                                                             flexShrink: 0,
                                                         }}
-                                                    />
+                                                    >
+                                                        {TabHardwareLedIcon ? (
+                                                            <TabHardwareLedIcon
+                                                                sx={{
+                                                                    fontSize: '0.58rem',
+                                                                    color: option.tabHardwareLed?.iconColor || 'common.white',
+                                                                }}
+                                                            />
+                                                        ) : null}
+                                                    </Box>
                                                     <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '1.2rem', lineHeight: 1 }}>
                                                         {trackerLabel}
                                                     </Typography>

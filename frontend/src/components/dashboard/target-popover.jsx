@@ -79,6 +79,8 @@ const toTimestampMs = (value) => {
     return Number.isFinite(ts) ? ts : null;
 };
 
+const SHOW_ICON_ELEVATION_OVERLAY = false;
+
 const SatelliteInfoPopover = () => {
     const dispatch = useDispatch();
     const theme = useTheme();
@@ -734,8 +736,8 @@ const SatelliteInfoPopover = () => {
                     </IconButton>
                 </Tooltip>
 
-                {/* Elevation Overlay */}
-                {satelliteData.details.norad_id && (
+                {/* Elevation Overlay (kept for potential future use, currently hidden) */}
+                {SHOW_ICON_ELEVATION_OVERLAY && satelliteData.details.norad_id && (
                     <Box
                         sx={{
                             position: 'absolute',
