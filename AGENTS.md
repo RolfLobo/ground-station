@@ -39,3 +39,8 @@
 - Never post/comment/create/update/delete on GitHub (issues/PRs/comments/labels/assignees/milestones/releases) unless the user explicitly asks for that exact write action in the current turn.
 - Default to read-only `gh` usage (list/view/status/check) unless explicit write permission is given in the current turn.
 - If there is any ambiguity, stop and ask before running any `gh` command that mutates remote state.
+
+## Code Comments
+- Add code comments more proactively when touching logic that is not immediately obvious.
+- Keep comments brief and clear (avoid verbose explanations).
+- Focus comments on intent and non-obvious behavior, not line-by-line narration.

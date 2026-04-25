@@ -34,6 +34,8 @@ const BookmarkCanvas = ({
                             containerWidth,
                             transformTick = 0,
                             interactionActive = false,
+                            allowInteractionMeasure = false,
+                            interactionMeasureTick = 0,
                             height,
                             bandOverlayHeight = 20,
                             onBookmarkClick = null
@@ -102,6 +104,13 @@ const BookmarkCanvas = ({
         }
         updateActualWidth();
     }, [containerWidth, transformTick, interactionActive, updateActualWidth]);
+
+    useEffect(() => {
+        if (!interactionActive || !allowInteractionMeasure) {
+            return;
+        }
+        updateActualWidth();
+    }, [interactionActive, allowInteractionMeasure, interactionMeasureTick, updateActualWidth]);
 
     // Helper function to compare bookmarks arrays
     function areBookmarksEqual(bookmarksA, bookmarksB) {
