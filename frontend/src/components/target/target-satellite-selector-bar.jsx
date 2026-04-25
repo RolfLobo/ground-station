@@ -124,6 +124,22 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
         () => trackerInstances.filter((instance) => parseTargetSlotNumber(instance?.tracker_id) !== null),
         [trackerInstances]
     );
+    const runningObservationTrackerIds = useMemo(() => {
+        const running = schedulerObservations.filter((obs) => obs?.status === 'running');
+        return new Set(
+            running
+                .map((obs) => String(obs?.id || '').trim())
+                .filter((value) => value.length > 0)
+        );
+    }, [schedulerObservations]);
+    const tabTrackerInstances = useMemo(() => {
+        return trackerInstances.filter((instance) => {
+            const instanceTrackerId = String(instance?.tracker_id || '').trim();
+            if (!instanceTrackerId) return false;
+            if (parseTargetSlotNumber(instanceTrackerId) !== null) return true;
+            return runningObservationTrackerIds.has(instanceTrackerId);
+        });
+    }, [trackerInstances, runningObservationTrackerIds]);
 
     const emitTrackingErrorToast = useCallback((error, fallbackMessage, options = {}) => {
         const suppressLimitToast = Boolean(options?.suppressLimitToast);
@@ -376,9 +392,11 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
         trackingState,
     ]);
 
-    const targetOptions = useMemo(() => targetTrackerInstances.map((instance, index) => {
+    const targetOptions = useMemo(() => tabTrackerInstances.map((instance, index) => {
         const instanceTrackerId = instance?.tracker_id || '';
-        const targetNumber = Number(parseTargetSlotNumber(instanceTrackerId) || (index + 1));
+        const parsedTargetNumber = parseTargetSlotNumber(instanceTrackerId);
+        const targetNumber = parsedTargetNumber != null ? Number(parsedTargetNumber) : null;
+        const isObservationTracker = parsedTargetNumber == null;
         const view = trackerViews?.[instanceTrackerId] || {};
         const satName = view?.satelliteData?.details?.name || 'No satellite';
         const satNorad = view?.trackingState?.norad_id || 'none';
@@ -407,6 +425,7 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
         return {
             trackerId: instanceTrackerId,
             targetNumber,
+            isObservationTracker,
             satName,
             satNorad,
             rotatorId,
@@ -420,7 +439,7 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
             hasScheduledObservation: upcomingObs.length > 0,
             linkedObservations,
         };
-    }), [targetTrackerInstances, trackerViews, schedulerObservations, rotatorRows]);
+    }), [tabTrackerInstances, trackerViews, schedulerObservations, rotatorRows]);
 
     const tabValue = targetOptions.some((option) => option.trackerId === trackerId)
         ? trackerId
@@ -1095,8 +1114,13 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
                                 const shortName = option.satName.length > 20
                                     ? `${option.satName.slice(0, 20)}...`
                                     : option.satName;
+                                const trackerLabel = option.isObservationTracker
+                                    ? 'OBS'
+                                    : `T${option.targetNumber}`;
                                 const tooltipLines = [
-                                    `Target ${option.targetNumber}`,
+                                    option.isObservationTracker
+                                        ? `Observation tracker (${option.trackerId})`
+                                        : `Target ${option.targetNumber}`,
                                     `${option.satName}`,
                                     `NORAD ${option.satNorad}`,
                                     `Rotator ${option.rotatorName}`,
@@ -1124,7 +1148,7 @@ const TargetSatelliteSelectorBar = React.memo(function TargetSatelliteSelectorBa
                                                         }}
                                                     />
                                                     <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '1.2rem', lineHeight: 1 }}>
-                                                        T{option.targetNumber}
+                                                        {trackerLabel}
                                                     </Typography>
                                                     <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: 190 }}>
                                                         <Typography
