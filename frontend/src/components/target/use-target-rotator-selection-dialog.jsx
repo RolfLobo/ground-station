@@ -21,6 +21,30 @@ const RETARGET_ACTIONS = Object.freeze({
     CURRENT_SLOT: 'retarget_current_slot',
     NEW_SLOT: 'create_new_slot',
 });
+const HARDWARE_STATUS_DEFAULT_LABELS = Object.freeze({
+    unassigned: 'Unassigned',
+    disconnected: 'Disconnected',
+    tracking: 'Tracking',
+    slewing: 'Slewing',
+    parked: 'Parked',
+    stopped: 'Stopped',
+    connected: 'Connected',
+    unknown: 'Unknown',
+});
+const resolveStatusLedColor = (theme, statusColor = 'default') => {
+    switch (statusColor) {
+    case 'success':
+        return theme.palette.success.main;
+    case 'warning':
+        return theme.palette.warning.main;
+    case 'error':
+        return theme.palette.error.main;
+    case 'info':
+        return theme.palette.info.main;
+    default:
+        return theme.palette.grey[500];
+    }
+};
 
 const normalizeHardwareId = (candidate) => {
     if (typeof candidate === 'string') {
@@ -136,44 +160,72 @@ export function useTargetRotatorSelectionDialog() {
                     ?? 'none'
                 );
 
-                let statusLabel = 'unknown';
-                let statusColor = 'default';
+                let rotatorStatusLabel = 'unknown';
+                let rotatorStatusColor = 'default';
                 if (rotatorId === 'none') {
-                    statusLabel = 'unassigned';
-                    statusColor = 'default';
+                    rotatorStatusLabel = 'unassigned';
+                    rotatorStatusColor = 'default';
                 } else if (
                     viewRotatorData?.connected === false
                     || viewTrackingState?.rotator_state === 'disconnected'
                 ) {
-                    statusLabel = 'disconnected';
-                    statusColor = 'error';
+                    rotatorStatusLabel = 'disconnected';
+                    rotatorStatusColor = 'error';
                 } else if (
                     viewRotatorData?.tracking === true
                     || viewTrackingState?.rotator_state === 'tracking'
                 ) {
-                    statusLabel = 'tracking';
-                    statusColor = 'success';
+                    rotatorStatusLabel = 'tracking';
+                    rotatorStatusColor = 'success';
                 } else if (viewRotatorData?.slewing === true) {
-                    statusLabel = 'slewing';
-                    statusColor = 'warning';
+                    rotatorStatusLabel = 'slewing';
+                    rotatorStatusColor = 'warning';
                 } else if (
                     viewRotatorData?.parked === true
                     || viewTrackingState?.rotator_state === 'parked'
                 ) {
-                    statusLabel = 'parked';
-                    statusColor = 'warning';
+                    rotatorStatusLabel = 'parked';
+                    rotatorStatusColor = 'warning';
                 } else if (
                     viewRotatorData?.stopped === true
                     || viewTrackingState?.rotator_state === 'stopped'
                 ) {
-                    statusLabel = 'stopped';
-                    statusColor = 'info';
+                    rotatorStatusLabel = 'stopped';
+                    rotatorStatusColor = 'info';
                 } else if (
                     viewRotatorData?.connected === true
                     || viewTrackingState?.rotator_state === 'connected'
                 ) {
-                    statusLabel = 'connected';
-                    statusColor = 'success';
+                    rotatorStatusLabel = 'connected';
+                    rotatorStatusColor = 'success';
+                }
+
+                let rigStatusLabel = 'unknown';
+                let rigStatusColor = 'default';
+                if (rigId === 'none') {
+                    rigStatusLabel = 'unassigned';
+                    rigStatusColor = 'default';
+                } else if (
+                    viewRigData?.connected === false
+                    || viewTrackingState?.rig_state === 'disconnected'
+                ) {
+                    rigStatusLabel = 'disconnected';
+                    rigStatusColor = 'error';
+                } else if (
+                    viewRigData?.tracking === true
+                    || viewTrackingState?.rig_state === 'tracking'
+                ) {
+                    rigStatusLabel = 'tracking';
+                    rigStatusColor = 'success';
+                } else if (viewTrackingState?.rig_state === 'stopped') {
+                    rigStatusLabel = 'stopped';
+                    rigStatusColor = 'info';
+                } else if (
+                    viewRigData?.connected === true
+                    || viewTrackingState?.rig_state === 'connected'
+                ) {
+                    rigStatusLabel = 'connected';
+                    rigStatusColor = 'success';
                 }
 
                 return {
@@ -183,15 +235,12 @@ export function useTargetRotatorSelectionDialog() {
                     rotatorName: rotatorNameById[rotatorId] || null,
                     rigId,
                     rigName: rigNameById[rigId] || null,
-                    rigConnected: rigId !== 'none'
-                        && (
-                            viewRigData?.connected === true
-                            || ['connected', 'tracking', 'stopped'].includes(String(viewTrackingState?.rig_state || ''))
-                        ),
                     noradId: trackingState?.norad_id ?? null,
                     satName,
-                    statusLabel,
-                    statusColor,
+                    rotatorStatusLabel,
+                    rotatorStatusColor,
+                    rigStatusLabel,
+                    rigStatusColor,
                 };
             })
             .filter(Boolean)
@@ -238,6 +287,11 @@ export function useTargetRotatorSelectionDialog() {
         { defaultValue: `New target (${nextTargetSlotId})`, slot: nextTargetSlotId },
     );
     const selectedTrackerId = resolveTrackerId(pendingAssignment?.trackerId, DEFAULT_TRACKER_ID);
+    const getStatusLabel = React.useCallback((status) => {
+        const key = String(status || 'unknown').toLowerCase();
+        const defaultLabel = HARDWARE_STATUS_DEFAULT_LABELS[key] || HARDWARE_STATUS_DEFAULT_LABELS.unknown;
+        return t(`target_retarget_dialog.status_${key}`, { defaultValue: defaultLabel });
+    }, [t]);
 
     const dialog = (
         <Dialog
@@ -408,18 +462,73 @@ export function useTargetRotatorSelectionDialog() {
                                                     spacing={0.6}
                                                     sx={{ flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', ml: 'auto', flexShrink: 0 }}
                                                 >
-                                                    <Chip
-                                                        size="small"
-                                                        variant="outlined"
-                                                        label={rotatorLabel}
-                                                        sx={{ height: 20, '& .MuiChip-label': { px: 0.8, fontSize: '0.68rem' } }}
-                                                    />
-                                                    {row.rigConnected ? (
+                                                    {row.rotatorId !== 'none' ? (
                                                         <Chip
                                                             size="small"
                                                             variant="outlined"
-                                                            label={row.rigName || row.rigId}
+                                                            title={`${row.rotatorName || row.rotatorId} (${getStatusLabel(row.rotatorStatusLabel)})`}
+                                                            label={(
+                                                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.65, minWidth: 0 }}>
+                                                                    <Box
+                                                                        component="span"
+                                                                        sx={{
+                                                                            width: 7.5,
+                                                                            height: 7.5,
+                                                                            borderRadius: '50%',
+                                                                            flexShrink: 0,
+                                                                            bgcolor: (theme) => resolveStatusLedColor(theme, row.rotatorStatusColor),
+                                                                            boxShadow: (theme) => `0 0 0 1px ${theme.palette.background.paper}, 0 0 6px ${resolveStatusLedColor(theme, row.rotatorStatusColor)}`,
+                                                                        }}
+                                                                    />
+                                                                    <Box component="span">{row.rotatorName || row.rotatorId}</Box>
+                                                                </Box>
+                                                            )}
+                                                            sx={{
+                                                                height: 20,
+                                                                borderColor: 'divider',
+                                                                '& .MuiChip-label': {
+                                                                    px: 0.8,
+                                                                    fontSize: '0.68rem',
+                                                                },
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <Chip
+                                                            size="small"
+                                                            variant="outlined"
+                                                            label={rotatorLabel}
                                                             sx={{ height: 20, '& .MuiChip-label': { px: 0.8, fontSize: '0.68rem' } }}
+                                                        />
+                                                    )}
+                                                    {row.rigId !== 'none' ? (
+                                                        <Chip
+                                                            size="small"
+                                                            variant="outlined"
+                                                            title={`${row.rigName || row.rigId} (${getStatusLabel(row.rigStatusLabel)})`}
+                                                            label={(
+                                                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.65, minWidth: 0 }}>
+                                                                    <Box
+                                                                        component="span"
+                                                                        sx={{
+                                                                            width: 7.5,
+                                                                            height: 7.5,
+                                                                            borderRadius: '50%',
+                                                                            flexShrink: 0,
+                                                                            bgcolor: (theme) => resolveStatusLedColor(theme, row.rigStatusColor),
+                                                                            boxShadow: (theme) => `0 0 0 1px ${theme.palette.background.paper}, 0 0 6px ${resolveStatusLedColor(theme, row.rigStatusColor)}`,
+                                                                        }}
+                                                                    />
+                                                                    <Box component="span">{row.rigName || row.rigId}</Box>
+                                                                </Box>
+                                                            )}
+                                                            sx={{
+                                                                height: 20,
+                                                                borderColor: 'divider',
+                                                                '& .MuiChip-label': {
+                                                                    px: 0.8,
+                                                                    fontSize: '0.68rem',
+                                                                },
+                                                            }}
                                                         />
                                                     ) : null}
                                                 </Stack>
