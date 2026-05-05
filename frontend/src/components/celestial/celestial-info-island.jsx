@@ -195,10 +195,17 @@ const CelestialInfoIsland = ({
                                 px: 1.5,
                                 py: 1.25,
                                 borderBottom: '1px solid',
-                                borderColor: selectedColor ? alpha(selectedColor, 0.55) : 'divider',
-                                bgcolor: selectedColor
-                                    ? (theme) => alpha(selectedColor, theme.palette.mode === 'dark' ? 0.2 : 0.12)
-                                    : 'background.paper',
+                                borderColor: 'divider',
+                                bgcolor: 'background.paper',
+                                backgroundImage: selectedColor
+                                    ? (theme) => (
+                                        `linear-gradient(135deg, ${
+                                            alpha(selectedColor, theme.palette.mode === 'dark' ? 0.26 : 0.18)
+                                        } 0%, ${
+                                            alpha(selectedColor, theme.palette.mode === 'dark' ? 0.08 : 0.05)
+                                        } 100%)`
+                                    )
+                                    : 'none',
                             }}
                         >
                             {loading && !selectedTrack ? (

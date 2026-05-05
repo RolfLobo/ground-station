@@ -35,6 +35,7 @@ import {
 import { getClassNamesBasedOnGridEditing, TitleBar } from '../common/common.jsx';
 import { useUserTimeSettings } from '../../hooks/useUserTimeSettings.jsx';
 import { toRowSelectionModel, toSelectedIds } from '../../utils/datagrid-selection.js';
+import ProgressFormatter from '../overview/progressbar-widget.jsx';
 
 const getPassBackgroundColor = (color, theme, coefficient) => ({
     backgroundColor: darken(color, coefficient),
@@ -169,20 +170,6 @@ const formatAngle = (value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return '-';
     return `${numeric.toFixed(2)}°`;
-};
-
-const getProgress = (startMs, endMs, nowMs) => {
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-        return { percent: 0, label: '-' };
-    }
-    if (nowMs < startMs) {
-        return { percent: 0, label: `Starts ${formatRelativeTime(startMs, nowMs)}` };
-    }
-    if (nowMs > endMs) {
-        return { percent: 100, label: 'Completed' };
-    }
-    const percent = ((nowMs - startMs) / (endMs - startMs)) * 100;
-    return { percent, label: `${Math.round(percent)}%` };
 };
 
 const PassStatusCell = ({ status }) => {
@@ -380,6 +367,9 @@ const CelestialPasses = ({
             currentElevationDeg: currentElevation,
             eventStart: pass.event_start,
             eventEnd: pass.event_end,
+            event_start: pass.event_start,
+            event_end: pass.event_end,
+            peak_time: pass.peak_time,
             eventStartMs,
             eventEndMs,
             durationSeconds: Number(pass.duration_seconds),
@@ -490,11 +480,10 @@ const CelestialPasses = ({
         {
             field: 'progress',
             headerName: 'Progress',
-            minWidth: 120,
+            minWidth: 150,
             sortable: false,
             renderCell: (params) => {
-                const progress = getProgress(params.row.eventStartMs, params.row.eventEndMs, nowMs);
-                return progress.label;
+                return <ProgressFormatter row={params.row} nowMs={nowMs} />;
             },
         },
         {
