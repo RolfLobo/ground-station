@@ -39,6 +39,7 @@ import SolarSystemCanvas from './solarsystem-canvas.jsx';
 import CelestialTopBar from './celestial-topbar.jsx';
 import MonitoredCelestialGridIsland from './monitored-grid-island.jsx';
 import CelestialPasses from './celestial-passes.jsx';
+import CelestialPassTimeline from './celestial-pass-timeline.jsx';
 import SettingsIcon from '@mui/icons-material/Settings';
 import {
     DEFAULT_SOLAR_SYSTEM_DISPLAY_OPTIONS,
@@ -52,6 +53,14 @@ const SHARED_RESIZE_HANDLES = ['s', 'sw', 'w', 'se', 'nw', 'ne', 'e'];
 const DEFAULT_PAST_HOURS = 24;
 const DEFAULT_FUTURE_HOURS = 24;
 const DEFAULT_STEP_MINUTES = 60;
+const parseNonNegativeNumber = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+const parsePositiveNumber = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 const DIALOG_PAPER_SX = {
     bgcolor: 'background.paper',
     border: (theme) => `1px solid ${theme.palette.divider}`,
@@ -141,23 +150,28 @@ function ensureRequiredLayoutItems(layouts) {
     const fallbackItems = {
         lg: [
             { i: 'monitored-celestial', x: 0, y: 20, w: 12, h: 8 },
-            { i: 'celestial-passes', x: 0, y: 28, w: 12, h: 8 },
+            { i: 'celestial-timeline', x: 0, y: 28, w: 12, h: 6 },
+            { i: 'celestial-passes', x: 0, y: 34, w: 12, h: 8 },
         ],
         md: [
             { i: 'monitored-celestial', x: 0, y: 20, w: 10, h: 8 },
-            { i: 'celestial-passes', x: 0, y: 28, w: 10, h: 8 },
+            { i: 'celestial-timeline', x: 0, y: 28, w: 10, h: 6 },
+            { i: 'celestial-passes', x: 0, y: 34, w: 10, h: 8 },
         ],
         sm: [
             { i: 'monitored-celestial', x: 0, y: 18, w: 6, h: 8 },
-            { i: 'celestial-passes', x: 0, y: 26, w: 6, h: 8 },
+            { i: 'celestial-timeline', x: 0, y: 26, w: 6, h: 6 },
+            { i: 'celestial-passes', x: 0, y: 32, w: 6, h: 8 },
         ],
         xs: [
             { i: 'monitored-celestial', x: 0, y: 16, w: 2, h: 8 },
-            { i: 'celestial-passes', x: 0, y: 24, w: 2, h: 8 },
+            { i: 'celestial-timeline', x: 0, y: 24, w: 2, h: 6 },
+            { i: 'celestial-passes', x: 0, y: 30, w: 2, h: 8 },
         ],
         xxs: [
             { i: 'monitored-celestial', x: 0, y: 16, w: 2, h: 8 },
-            { i: 'celestial-passes', x: 0, y: 24, w: 2, h: 8 },
+            { i: 'celestial-timeline', x: 0, y: 24, w: 2, h: 6 },
+            { i: 'celestial-passes', x: 0, y: 30, w: 2, h: 8 },
         ],
     };
 
@@ -198,27 +212,32 @@ const defaultLayouts = {
     lg: [
         { i: 'solar-system', x: 0, y: 0, w: 12, h: 20, resizeHandles: [...SHARED_RESIZE_HANDLES] },
         { i: 'monitored-celestial', x: 0, y: 20, w: 12, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
-        { i: 'celestial-passes', x: 0, y: 28, w: 12, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-timeline', x: 0, y: 28, w: 12, h: 6, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-passes', x: 0, y: 34, w: 12, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
     ],
     md: [
         { i: 'solar-system', x: 0, y: 0, w: 10, h: 20, resizeHandles: [...SHARED_RESIZE_HANDLES] },
         { i: 'monitored-celestial', x: 0, y: 20, w: 10, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
-        { i: 'celestial-passes', x: 0, y: 28, w: 10, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-timeline', x: 0, y: 28, w: 10, h: 6, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-passes', x: 0, y: 34, w: 10, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
     ],
     sm: [
         { i: 'solar-system', x: 0, y: 0, w: 6, h: 18, resizeHandles: [...SHARED_RESIZE_HANDLES] },
         { i: 'monitored-celestial', x: 0, y: 18, w: 6, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
-        { i: 'celestial-passes', x: 0, y: 26, w: 6, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-timeline', x: 0, y: 26, w: 6, h: 6, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-passes', x: 0, y: 32, w: 6, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
     ],
     xs: [
         { i: 'solar-system', x: 0, y: 0, w: 2, h: 16, resizeHandles: [...SHARED_RESIZE_HANDLES] },
         { i: 'monitored-celestial', x: 0, y: 16, w: 2, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
-        { i: 'celestial-passes', x: 0, y: 24, w: 2, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-timeline', x: 0, y: 24, w: 2, h: 6, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-passes', x: 0, y: 30, w: 2, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
     ],
     xxs: [
         { i: 'solar-system', x: 0, y: 0, w: 2, h: 16, resizeHandles: [...SHARED_RESIZE_HANDLES] },
         { i: 'monitored-celestial', x: 0, y: 16, w: 2, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
-        { i: 'celestial-passes', x: 0, y: 24, w: 2, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-timeline', x: 0, y: 24, w: 2, h: 6, resizeHandles: [...SHARED_RESIZE_HANDLES] },
+        { i: 'celestial-passes', x: 0, y: 30, w: 2, h: 8, resizeHandles: [...SHARED_RESIZE_HANDLES] },
     ],
 };
 
@@ -246,9 +265,9 @@ const CelestialMainLayout = () => {
     const projectionSettings = React.useMemo(() => {
         const mapSettings = celestialState.mapSettings || {};
         return {
-            past_hours: Number(mapSettings.pastHours) || DEFAULT_PAST_HOURS,
-            future_hours: Number(mapSettings.futureHours) || DEFAULT_FUTURE_HOURS,
-            step_minutes: Number(mapSettings.stepMinutes) || DEFAULT_STEP_MINUTES,
+            past_hours: parseNonNegativeNumber(mapSettings.pastHours, DEFAULT_PAST_HOURS),
+            future_hours: parsePositiveNumber(mapSettings.futureHours, DEFAULT_FUTURE_HOURS),
+            step_minutes: parsePositiveNumber(mapSettings.stepMinutes, DEFAULT_STEP_MINUTES),
         };
     }, [celestialState.mapSettings]);
 
@@ -492,6 +511,15 @@ const CelestialMainLayout = () => {
                     />
                 </Box>
             </Box>
+        </StyledIslandParentNoScrollbar>,
+        <StyledIslandParentNoScrollbar key="celestial-timeline">
+            <CelestialPassTimeline
+                passes={combinedScene?.celestial_passes || []}
+                loading={Boolean(celestialState.tracksLoading)}
+                gridEditable={isEditing}
+                projectionFutureHours={projectionSettings.future_hours}
+                onRefresh={handleRefreshCelestial}
+            />
         </StyledIslandParentNoScrollbar>,
         <StyledIslandParentNoScrollbar key="celestial-passes">
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>

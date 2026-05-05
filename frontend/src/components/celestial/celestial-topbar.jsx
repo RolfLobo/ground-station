@@ -64,6 +64,15 @@ const HOUR_OPTIONS = [
     { value: 4320, label: '6mo' },
     { value: 8760, label: '1y' },
 ];
+const PAST_HOUR_OPTIONS = [{ value: 0, label: '0h' }, ...HOUR_OPTIONS];
+const coercePastHours = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 24;
+};
+const coerceFutureHours = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 24;
+};
 const DIALOG_PAPER_SX = {
     bgcolor: 'background.paper',
     border: (theme) => `1px solid ${theme.palette.divider}`,
@@ -449,8 +458,8 @@ const CelestialTopBar = ({
                         socket,
                         ids: [createdId],
                         payload: {
-                            past_hours: Number(projectionPastHours) || 24,
-                            future_hours: Number(projectionFutureHours) || 24,
+                            past_hours: coercePastHours(projectionPastHours),
+                            future_hours: coerceFutureHours(projectionFutureHours),
                             step_minutes: 60,
                         },
                     }),
@@ -470,8 +479,8 @@ const CelestialTopBar = ({
                 socket,
                 ids: [],
                 payload: {
-                    past_hours: Number(projectionPastHours) || 24,
-                    future_hours: Number(projectionFutureHours) || 24,
+                    past_hours: coercePastHours(projectionPastHours),
+                    future_hours: coerceFutureHours(projectionFutureHours),
                     step_minutes: 60,
                 },
             }),
@@ -621,7 +630,7 @@ const CelestialTopBar = ({
                                     },
                                 }}
                             >
-                                {HOUR_OPTIONS.map((option) => (
+                                {PAST_HOUR_OPTIONS.map((option) => (
                                     <MenuItem key={`past-${option.value}`} value={option.value}>
                                         {option.label}
                                     </MenuItem>
