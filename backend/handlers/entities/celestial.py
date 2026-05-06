@@ -267,7 +267,8 @@ async def refresh_celestial_now(
         data=payload,
         logger=logger,
         force_refresh=True,
-        allow_network_fetch=False,
+        # Explicit user refresh should bypass cache-only mode and fetch fresh vectors.
+        allow_network_fetch=True,
     )
     if scene.get("success"):
         scene_data_obj = scene.get("data")
@@ -353,7 +354,8 @@ async def refresh_monitored_celestial_now(
             data=payload,
             logger=logger,
             force_refresh=True,
-            allow_network_fetch=False,
+            # Explicit user refresh should bypass cache-only mode and fetch fresh vectors.
+            allow_network_fetch=True,
             per_row_callback=emit_partial_row,
         )
         if not tracks.get("success"):
