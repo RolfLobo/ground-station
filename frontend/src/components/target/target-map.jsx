@@ -75,6 +75,7 @@ import {
     getClassNamesBasedOnGridEditing,
     humanizeAltitude,
     humanizeVelocity,
+    islandTitleBarSx,
 } from "../common/common.jsx";
 import TargetNumberIcon from '../common/target-number-icon.jsx';
 import { useTooltipOrientation } from '../common/tooltip-orientation.js';
@@ -877,15 +878,10 @@ const TargetMapContainer = ({}) => {
         const nonSatelliteTitle = targetType === 'mission' ? 'Target Map · Mission' : 'Target Map · Body';
 
         return (
-            <>
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <TitleBar
                     className={getClassNamesBasedOnGridEditing(gridEditable, ["window-title-bar"])}
-                    sx={{
-                        bgcolor: 'background.titleBar',
-                        borderBottom: '1px solid',
-                        borderColor: 'border.main',
-                        backdropFilter: 'blur(10px)',
-                    }}
+                    sx={islandTitleBarSx}
                 >
                     <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%'}}>
                         <Box sx={{display: 'flex', alignItems: 'center', minWidth: 0, gap: 0.75}}>
@@ -912,7 +908,7 @@ const TargetMapContainer = ({}) => {
                         </Box>
                     </Box>
                 </TitleBar>
-                <Box sx={{ width: '100%', height: 'calc(100% - 30px)' }}>
+                <Box sx={{ width: '100%', flex: 1, minHeight: 0 }}>
                     {!nonSatellitePayload ? (
                         <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
                             <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
@@ -940,20 +936,15 @@ const TargetMapContainer = ({}) => {
                         </Box>
                     )}
                 </Box>
-            </>
+            </Box>
         );
     }
 
     return (
-        <>
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <TitleBar
                 className={getClassNamesBasedOnGridEditing(gridEditable, ["window-title-bar"])}
-                sx={{
-                    bgcolor: 'background.titleBar',
-                    borderBottom: '1px solid',
-                    borderColor: 'border.main',
-                    backdropFilter: 'blur(10px)'
-                }}
+                sx={islandTitleBarSx}
             >
                 <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%'}}>
                     <Box sx={{display: 'flex', alignItems: 'center'}}>
@@ -976,25 +967,26 @@ const TargetMapContainer = ({}) => {
                     </Box>
                 </Box>
             </TitleBar>
-            {/* Leaflet CRS is immutable after map init, so remount when projection changes. */}
-            <MapContainer
-                key={`target-map-${selectedTileLayer.id}-${selectedTileLayer.projection || 'EPSG3857'}`}
-                className="target-map"
-                center={satellitePosition?.lat && satellitePosition?.lon ? [satellitePosition.lat, satellitePosition.lon] : [0, 0]}
-                crs={mapCrs}
-                zoom={mapZoomLevel}
-                style={{width: '100%', height: 'calc(100% - 60px)'}}
-                dragging={false}
-                scrollWheelZoom={false}
-                maxZoom={10}
-                minZoom={0}
-                whenReady={handleWhenReady}
-                zoomSnap={0.25}
-                zoomDelta={0.25}
-                keyboard={false}
-                bounceAtZoomLimits={false}
-                closePopupOnClick={false}
-            >
+            <Box sx={{ width: '100%', flex: 1, minHeight: 0, position: 'relative' }}>
+                {/* Leaflet CRS is immutable after map init, so remount when projection changes. */}
+                <MapContainer
+                    key={`target-map-${selectedTileLayer.id}-${selectedTileLayer.projection || 'EPSG3857'}`}
+                    className="target-map"
+                    center={satellitePosition?.lat && satellitePosition?.lon ? [satellitePosition.lat, satellitePosition.lon] : [0, 0]}
+                    crs={mapCrs}
+                    zoom={mapZoomLevel}
+                    style={{width: '100%', height: '100%'}}
+                    dragging={false}
+                    scrollWheelZoom={false}
+                    maxZoom={10}
+                    minZoom={0}
+                    whenReady={handleWhenReady}
+                    zoomSnap={0.25}
+                    zoomDelta={0.25}
+                    keyboard={false}
+                    bounceAtZoomLimits={false}
+                    closePopupOnClick={false}
+                >
                 <MapEventComponent handleSetMapZoomLevel={handleSetMapZoomLevel}/>
 
                 {selectedTileLayer.type === 'wms' ? (
@@ -1086,14 +1078,15 @@ const TargetMapContainer = ({}) => {
                         showLabels={false}
                     />
                 )}
-            </MapContainer>
-            <MapStatusBar>
-                <SimpleTruncatedHtml
-                    className={"attribution"}
-                    htmlString={`<a href="https://leafletjs.com" title="A JavaScript library for interactive maps" target="_blank" rel="noopener noreferrer">Leaflet</a> | ${selectedTileLayer.attribution}`}
-                />
-            </MapStatusBar>
-        </>
+                    <MapStatusBar>
+                        <SimpleTruncatedHtml
+                            className={"attribution"}
+                            htmlString={`<a href="https://leafletjs.com" title="A JavaScript library for interactive maps" target="_blank" rel="noopener noreferrer">Leaflet</a> | ${selectedTileLayer.attribution}`}
+                        />
+                    </MapStatusBar>
+                </MapContainer>
+            </Box>
+        </Box>
     );
 };
 

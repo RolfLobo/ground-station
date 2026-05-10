@@ -176,6 +176,23 @@ export const TitleBar = styled(Paper)(({ theme }) => ({
     },
 }));
 
+// Shared title-bar style presets used by island headers across overview/target/celestial/waterfall.
+export const islandTitleBarSx = {
+    bgcolor: 'background.titleBar',
+    borderBottom: '1px solid',
+    borderColor: 'border.main',
+    backdropFilter: 'blur(10px)',
+};
+
+export const islandTitleBarCompactSx = {
+    ...islandTitleBarSx,
+    height: 30,
+    minHeight: 30,
+    py: 0,
+    display: 'flex',
+    alignItems: 'center',
+};
+
 export const ThemedLeafletTooltip = styled(LeafletTooltip)(({ theme }) => ({
     color: theme.palette.text.primary,
     backgroundColor: theme.palette.background.paper,

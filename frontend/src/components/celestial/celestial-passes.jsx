@@ -30,12 +30,13 @@ import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     setCelestialPassesTableColumnVisibility,
     setCelestialPassesTablePageSize,
     setCelestialPassesTableSortModel,
 } from './celestial-slice.jsx';
-import { getClassNamesBasedOnGridEditing, TitleBar } from '../common/common.jsx';
+import { getClassNamesBasedOnGridEditing, islandTitleBarCompactSx, TitleBar } from '../common/common.jsx';
 import { useUserTimeSettings } from '../../hooks/useUserTimeSettings.jsx';
 import { toRowSelectionModel, toSelectedIds } from '../../utils/datagrid-selection.js';
 import ProgressFormatter from '../overview/progressbar-widget.jsx';
@@ -319,6 +320,7 @@ const CelestialPasses = ({
     onRefresh = null,
     refreshDisabled = false,
 }) => {
+    const { t } = useTranslation('overview');
     const dispatch = useDispatch();
     const theme = useTheme();
     const isCompactHeader = useMediaQuery(theme.breakpoints.down('lg'));
@@ -573,24 +575,17 @@ const CelestialPasses = ({
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <TitleBar
                 className={getClassNamesBasedOnGridEditing(gridEditable, ['window-title-bar'])}
-                sx={{
-                    bgcolor: 'background.titleBar',
-                    borderBottom: '1px solid',
-                    borderColor: 'border.main',
-                    height: 30,
-                    minHeight: 30,
-                    py: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                }}
+                sx={islandTitleBarCompactSx}
             >
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '100%' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            Celestial Passes
+                            {t('celestial.passes_title', { defaultValue: 'Celestial Passes' })}
                         </Typography>
                         <Typography variant="caption" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                            ({rows.length} {rows.length === 1 ? 'pass' : 'passes'})
+                            ({rows.length} {rows.length === 1
+                                ? t('celestial.pass_label', { defaultValue: 'pass' })
+                                : t('celestial.passes_label', { defaultValue: 'passes' })})
                         </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
