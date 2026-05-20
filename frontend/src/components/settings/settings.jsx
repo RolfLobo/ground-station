@@ -142,6 +142,47 @@ function getTabCategory(value) {
     return null;
 }
 
+function getSettingsTabRowSx(rowKey) {
+    return (theme) => {
+        const isDark = theme.palette.mode === 'dark';
+        const fallbackRows = isDark
+            ? {
+                mainRow: { background: '#2b3036', selected: '#394049' },
+                subRow: { background: '#272c32', selected: '#353c45' },
+                detailRow: { background: '#24292f', selected: '#323942' },
+            }
+            : {
+                mainRow: { background: '#e6ebf3', selected: '#f4f7fb' },
+                subRow: { background: '#eaf0f7', selected: '#f7f9fc' },
+                detailRow: { background: '#edf2f8', selected: '#ffffff' },
+            };
+
+        const rowTheme = theme.palette.settingsTabs?.[rowKey] || {};
+        const rowFallback = fallbackRows[rowKey] || fallbackRows.subRow;
+        const borderColor = theme.palette.settingsTabs?.border
+            || (isDark ? '#50565f' : '#c5cfdd');
+
+        return {
+            backgroundColor: rowTheme.background || rowFallback.background,
+            borderBottom: `1px solid ${borderColor}`,
+            '& .MuiTabs-indicator': {
+                display: 'none',
+            },
+            '& .MuiTab-root': {
+                color: theme.palette.text.secondary,
+                transition: 'background-color 140ms ease, color 140ms ease',
+            },
+            '& .MuiTab-root.Mui-selected': {
+                backgroundColor: rowTheme.selected || rowFallback.selected,
+                color: theme.palette.text.primary,
+            },
+            [`& .${tabsClasses.scrollButtons}`]: {
+                '&.Mui-disabled': { opacity: 0.3 },
+            },
+        };
+    };
+}
+
 export const SettingsTabs = React.memo(function SettingsTabs({
     initialMainTab,
     initialTab,
@@ -223,11 +264,7 @@ export const SettingsTabs = React.memo(function SettingsTabs({
     }
 
     const tabObject = <AntTabs
-        sx={{
-            [`& .${tabsClasses.scrollButtons}`]: {
-                '&.Mui-disabled': { opacity: 0.3 },
-            },
-        }}
+        sx={getSettingsTabRowSx('subRow')}
         value={activeTab}
         aria-label={t('tabs.configuration_tabs')}
         scrollButtons={true}
@@ -289,12 +326,7 @@ export const SettingsTabs = React.memo(function SettingsTabs({
     return (
          <Box sx={{ flexGrow: 1, bgcolor: 'background.paper' }}>
              <AntTabs
-                 sx={{
-                     [`& .${tabsClasses.scrollButtons}`]: {
-                         '&.Mui-disabled': { opacity: 0.3 },
-                     },
-                     bottomBorder: '1px #4c4c4c solid',
-                 }}
+                 sx={getSettingsTabRowSx('mainRow')}
                  value={activeMainTab}
                  aria-label={t('tabs.main_settings_tabs')}
                  scrollButtons={true}
@@ -411,11 +443,7 @@ const SettingsAndPreferencesForm = React.memo(function SettingsAndPreferencesFor
                 scrollButtons={true}
                 variant="scrollable"
                 allowScrollButtonsMobile
-                sx={{
-                    [`& .${tabsClasses.scrollButtons}`]: {
-                        '&.Mui-disabled': { opacity: 0.3 },
-                    },
-                }}
+                sx={getSettingsTabRowSx('detailRow')}
             >
                 <AntTab key="preferences" value="preferences" label={t('tabs.preferences')} />
                 <AntTab key="integrations" value="integrations" label={t('tabs.integrations', { defaultValue: 'Integrations' })} />
