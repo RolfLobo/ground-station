@@ -75,6 +75,17 @@ export const gnssSlice = createSlice({
         setGnssSatellitesSortModel: (state, action) => {
             state.gnssSatellitesSortModel = action.payload;
         },
+        resetGnssFixLifecycle: (state) => {
+            // Reset only live GNSS fix lifecycle status for a fresh streaming session.
+            state.gnssFixLifecycle = {
+                currentStatus: 'NO DATA',
+                currentFixStartedAtMs: null,
+                lastFixAcquiredAtMs: null,
+                lastFixLostAtMs: null,
+                lastFixDurationMs: null,
+                lastSignalAtMs: null,
+            };
+        },
         updateGnssFixLifecycleFromOutput: (state, action) => {
             const payload = action.payload || {};
             if (payload.decoder_type !== 'gnss') {
@@ -118,6 +129,7 @@ export const gnssSlice = createSlice({
 export const {
     setDecodedInsightsActiveTab,
     setGnssSatellitesSortModel,
+    resetGnssFixLifecycle,
     updateGnssFixLifecycleFromOutput,
 } = gnssSlice.actions;
 

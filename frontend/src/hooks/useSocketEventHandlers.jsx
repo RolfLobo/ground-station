@@ -61,7 +61,7 @@ import {
     setErrorDialogOpen,
     setStartStreamingLoading,
 } from '../components/waterfall/waterfall-slice.jsx';
-import { updateGnssFixLifecycleFromOutput } from '../components/waterfall/gnss-slice.jsx';
+import { resetGnssFixLifecycle, updateGnssFixLifecycleFromOutput } from '../components/waterfall/gnss-slice.jsx';
 import { updateAllVFOStates, setVFOProperty } from '../components/waterfall/vfo-marker/vfo-slice.jsx';
 import { fetchFiles } from '../components/filebrowser/filebrowser-slice.jsx';
 import {
@@ -377,6 +377,11 @@ export const useSocketEventHandlers = (socket) => {
         // SDR streaming status
         socket.on('sdr-status', (data) => {
             if (data['streaming'] === true) {
+                const wasStreaming = Boolean(store.getState()?.waterfall?.isStreaming);
+                if (!wasStreaming) {
+                    // Start of a new stream session: clear stale GNSS fix lifecycle status.
+                    store.dispatch(resetGnssFixLifecycle());
+                }
                 store.dispatch(setIsStreaming(true));
                 store.dispatch(setStartStreamingLoading(false));
             } else if (data['streaming'] === false) {
