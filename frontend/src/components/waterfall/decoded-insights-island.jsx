@@ -561,6 +561,19 @@ const DecodedInsightsIsland = React.memo(function DecodedInsightsIsland() {
         : displayFixStatus === 'NO FIX'
             ? theme.palette.warning.main
             : theme.palette.info.main;
+    const gnssRxStatusLabel = gnssActivity.active
+        ? `${gnssActivity.packetsPerSec.toFixed(1)} pkt/s`
+        : (gnssActivity.heartbeatAlive ? 'alive' : 'waiting');
+    const gnssRxStatusColor = gnssActivity.active
+        ? theme.palette.success.main
+        : gnssActivity.heartbeatAlive
+            ? theme.palette.info.main
+            : theme.palette.text.secondary;
+    const gnssFixStatusColor = displayFixStatus === 'FIX'
+        ? theme.palette.success.main
+        : displayFixStatus === 'NO FIX'
+            ? theme.palette.warning.main
+            : theme.palette.text.secondary;
 
     const gnssColumns = useMemo(() => ([
         {
@@ -760,27 +773,57 @@ const DecodedInsightsIsland = React.memo(function DecodedInsightsIsland() {
                         <WaterfallStatusBarPaper
                             elevation={0}
                             sx={{
-                                height: 28,
-                                minHeight: 28,
+                                height: 30,
+                                minHeight: 30,
                                 borderTop: `1px solid ${theme.palette.border.main}`,
                                 borderBottom: 'none',
                                 px: 1,
-                                gap: 0.65,
-                                flexWrap: 'wrap',
                                 overflow: 'hidden',
                             }}
                         >
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                                Packets
-                            </Typography>
-                            <Chip size="small" variant="outlined" label={`Decoded ${packetOutputCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`Decoders ${packetStatusStats.decoderTypeCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`Telemetry ${packetStatusStats.telemetryCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`Files ${packetStatusStats.fileOutputCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`1m ${packetStatusStats.recentPacketCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Typography variant="caption" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                                {`Last ${packetStatusStats.latestPacketMs ? formatTimestamp(packetStatusStats.latestPacketMs) : '-'}`}
-                            </Typography>
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 0.5,
+                                    fontSize: '0.72rem',
+                                    fontFamily: 'monospace',
+                                    color: 'text.secondary',
+                                    width: '100%',
+                                    minWidth: 0,
+                                    overflowX: 'hidden',
+                                    overflowY: 'hidden',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.68rem' }}>
+                                    PKTS
+                                </Typography>
+                                <Box sx={{ opacity: 0.55 }}>•</Box>
+                                <Box sx={{ display: 'flex', gap: 0.45, flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
+                                    <Box component="span">dec: <Box component="span" sx={{ fontWeight: 700 }}>{packetOutputCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">types: <Box component="span" sx={{ fontWeight: 700 }}>{packetStatusStats.decoderTypeCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">tlm: <Box component="span" sx={{ fontWeight: 700 }}>{packetStatusStats.telemetryCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">files: <Box component="span" sx={{ fontWeight: 700 }}>{packetStatusStats.fileOutputCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">1m: <Box component="span" sx={{ fontWeight: 700 }}>{packetStatusStats.recentPacketCount}</Box></Box>
+                                </Box>
+                                <Typography
+                                    variant="caption"
+                                    sx={{
+                                        color: 'text.secondary',
+                                        whiteSpace: 'nowrap',
+                                        marginLeft: 'auto',
+                                        flex: '0 0 auto',
+                                        fontSize: '0.65rem',
+                                    }}
+                                >
+                                    {`last: ${packetStatusStats.latestPacketMs ? formatTimestamp(packetStatusStats.latestPacketMs) : '-'}`}
+                                </Typography>
+                            </Box>
                         </WaterfallStatusBarPaper>
                     </Box>
                 )}
@@ -958,42 +1001,90 @@ const DecodedInsightsIsland = React.memo(function DecodedInsightsIsland() {
                         <WaterfallStatusBarPaper
                             elevation={0}
                             sx={{
-                                height: 28,
-                                minHeight: 28,
+                                height: 30,
+                                minHeight: 30,
                                 borderTop: `1px solid ${theme.palette.border.main}`,
                                 borderBottom: 'none',
                                 px: 1,
-                                gap: 0.65,
-                                flexWrap: 'wrap',
                                 overflow: 'hidden',
                             }}
                         >
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                                GNSS
-                            </Typography>
-                            <Chip size="small" variant="outlined" label={`Satellites ${satelliteRows.length}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`Tracking ${gnssStatusStats.trackingSatCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`Acquired ${gnssStatusStats.acquiredSatCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`Lost ${gnssStatusStats.lostSatCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`Events ${gnssEventCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip size="small" variant="outlined" label={`1m ${gnssStatusStats.recentEventCount}`} sx={{ height: 18, fontSize: '0.62rem' }} />
-                            <Chip
-                                size="small"
-                                color={gnssActivity.active ? 'info' : gnssActivity.heartbeatAlive ? 'warning' : 'default'}
-                                variant={gnssActivity.active || gnssActivity.heartbeatAlive ? 'filled' : 'outlined'}
-                                label={gnssActivity.active ? `RX ${gnssActivity.packetsPerSec.toFixed(1)} pkt/s` : (gnssActivity.heartbeatAlive ? 'RX alive' : 'RX waiting')}
-                                sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700 }}
-                            />
-                            <Chip
-                                size="small"
-                                color={displayFixStatus === 'FIX' ? 'success' : displayFixStatus === 'NO FIX' ? 'warning' : 'default'}
-                                variant={displayFixStatus === 'FIX' ? 'filled' : 'outlined'}
-                                label={`Fix ${displayFixStatus}`}
-                                sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700 }}
-                            />
-                            <Typography variant="caption" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                                {`Last ${gnssStatusStats.latestGnssEventMs ? formatTimestamp(gnssStatusStats.latestGnssEventMs) : '-'}`}
-                            </Typography>
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 0.5,
+                                    fontSize: '0.72rem',
+                                    fontFamily: 'monospace',
+                                    color: 'text.secondary',
+                                    width: '100%',
+                                    minWidth: 0,
+                                    overflowX: 'hidden',
+                                    overflowY: 'hidden',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.68rem' }}>
+                                    GNSS
+                                </Typography>
+                                <Box sx={{ opacity: 0.55 }}>•</Box>
+                                <Box sx={{ display: 'flex', gap: 0.45, flex: '1 1 auto', minWidth: 0, overflow: 'hidden' }}>
+                                    <Box component="span">sat: <Box component="span" sx={{ fontWeight: 700 }}>{satelliteRows.length}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">trk: <Box component="span" sx={{ fontWeight: 700 }}>{gnssStatusStats.trackingSatCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">acq: <Box component="span" sx={{ fontWeight: 700 }}>{gnssStatusStats.acquiredSatCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">lost: <Box component="span" sx={{ fontWeight: 700 }}>{gnssStatusStats.lostSatCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">ev: <Box component="span" sx={{ fontWeight: 700 }}>{gnssEventCount}</Box></Box>
+                                    <Box component="span" sx={{ opacity: 0.55 }}>•</Box>
+                                    <Box component="span">1m: <Box component="span" sx={{ fontWeight: 700 }}>{gnssStatusStats.recentEventCount}</Box></Box>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.55, marginLeft: 'auto', flex: '0 0 auto' }}>
+                                    <Box
+                                        component="span"
+                                        sx={{
+                                            px: 0.7,
+                                            py: 0.15,
+                                            borderRadius: 0.75,
+                                            border: `1px solid ${alpha(gnssRxStatusColor, 0.35)}`,
+                                            backgroundColor: alpha(gnssRxStatusColor, 0.08),
+                                            color: gnssRxStatusColor,
+                                            fontWeight: 700,
+                                            fontSize: '0.66rem',
+                                        }}
+                                    >
+                                        {`rx: ${gnssRxStatusLabel}`}
+                                    </Box>
+                                    <Box
+                                        component="span"
+                                        sx={{
+                                            px: 0.7,
+                                            py: 0.15,
+                                            borderRadius: 0.75,
+                                            border: `1px solid ${alpha(gnssFixStatusColor, 0.35)}`,
+                                            backgroundColor: alpha(gnssFixStatusColor, 0.08),
+                                            color: gnssFixStatusColor,
+                                            fontWeight: 700,
+                                            fontSize: '0.66rem',
+                                        }}
+                                    >
+                                        {`fix: ${displayFixStatus}`}
+                                    </Box>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            whiteSpace: 'nowrap',
+                                            display: { xs: 'none', lg: 'inline' },
+                                            fontSize: '0.65rem',
+                                        }}
+                                    >
+                                        {`last: ${gnssStatusStats.latestGnssEventMs ? formatTimestamp(gnssStatusStats.latestGnssEventMs) : '-'}`}
+                                    </Typography>
+                                </Box>
+                            </Box>
                         </WaterfallStatusBarPaper>
                     </Box>
                 )}
