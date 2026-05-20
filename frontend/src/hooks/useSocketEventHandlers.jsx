@@ -77,6 +77,7 @@ import {
     decoderStatusChanged,
     decoderProgressUpdated,
     decoderOutputReceived,
+    clearGnssOutputsForDecoder,
     setCurrentSessionId,
     cleanupStaleDecoders,
 } from '../components/decoders/decoders-slice.jsx';
@@ -664,6 +665,14 @@ export const useSocketEventHandlers = (socket) => {
         socket.on('decoder-data', (data) => {
             switch (data.type) {
                 case 'decoder-status':
+                    // GNSS decoder restart: clear GNSS table/fix timeline so UI reflects a fresh session.
+                    if (data.decoder_type === 'gnss' && String(data.status || '').toLowerCase() === 'starting') {
+                        dispatch(resetGnssFixLifecycle());
+                        store.dispatch(clearGnssOutputsForDecoder({
+                            session_id: data.session_id,
+                            vfo: data.vfo,
+                        }));
+                    }
                     store.dispatch(decoderStatusChanged({
                         session_id: data.session_id,
                         status: data.status,

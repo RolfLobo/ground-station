@@ -34,6 +34,7 @@ logger = logging.getLogger("gnsssdrdecoder")
 
 
 class DecoderStatus(Enum):
+    STARTING = "starting"
     IDLE = "idle"
     LISTENING = "listening"
     ACQUIRING = "acquiring"
@@ -1220,6 +1221,15 @@ class GNSSSdrDecoder(BaseDecoderProcess):
         last_monitor_poll = time.time()
 
         try:
+            # Emit an explicit startup status so the VFO marker secondary label can
+            # show "STARTING" while GNSS-SDR runtime/config bootstrapping is in progress.
+            self._send_status_update(
+                DecoderStatus.STARTING,
+                {
+                    "phase": "initializing",
+                },
+            )
+
             if shutil.which("gnss-sdr") is None:
                 self._send_status_update(
                     DecoderStatus.ERROR,
