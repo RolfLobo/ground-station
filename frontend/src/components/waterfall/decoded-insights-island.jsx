@@ -98,7 +98,6 @@ const DecodedInsightsIsland = React.memo(function DecodedInsightsIsland() {
     const { timezone, locale } = useUserTimeSettings();
     const [selectedSatelliteId, setSelectedSatelliteId] = useState(null);
     const [relativeNowMs, setRelativeNowMs] = useState(() => Date.now());
-    const [noFixSinceMs, setNoFixSinceMs] = useState(() => Date.now());
 
     const {
         outputs,
@@ -290,6 +289,7 @@ const DecodedInsightsIsland = React.memo(function DecodedInsightsIsland() {
         lastFixLostAtMs: gnssFixLifecycle?.lastFixLostAtMs ?? null,
         lastFixDurationMs: gnssFixLifecycle?.lastFixDurationMs ?? null,
         lastSignalAtMs: gnssFixLifecycle?.lastSignalAtMs ?? null,
+        noFixSinceAtMs: gnssFixLifecycle?.noFixSinceAtMs ?? null,
     }), [gnssFixLifecycle]);
     const displayFixStatus = fixLifecycle.currentStatus !== 'NO DATA'
         ? fixLifecycle.currentStatus
@@ -297,24 +297,9 @@ const DecodedInsightsIsland = React.memo(function DecodedInsightsIsland() {
     const currentFixElapsedMs = (displayFixStatus === 'FIX' && fixLifecycle.currentFixStartedAtMs !== null)
         ? Math.max(0, relativeNowMs - fixLifecycle.currentFixStartedAtMs)
         : null;
-    const noFixElapsedMs = noFixSinceMs !== null
-        ? Math.max(0, relativeNowMs - noFixSinceMs)
+    const noFixElapsedMs = (displayFixStatus !== 'FIX' && fixLifecycle.noFixSinceAtMs !== null)
+        ? Math.max(0, relativeNowMs - fixLifecycle.noFixSinceAtMs)
         : null;
-    useEffect(() => {
-        if (displayFixStatus === 'FIX') {
-            setNoFixSinceMs(null);
-            return;
-        }
-
-        // Start a no-fix timer immediately for initial NO FIX / NO DATA states,
-        // and reset to exact decoder-reported loss time when available.
-        setNoFixSinceMs((previous) => {
-            if (fixLifecycle.lastFixLostAtMs !== null) {
-                return fixLifecycle.lastFixLostAtMs;
-            }
-            return previous ?? Date.now();
-        });
-    }, [displayFixStatus, fixLifecycle.lastFixLostAtMs]);
     const acquiredAgoMs = fixLifecycle.lastFixAcquiredAtMs !== null
         ? Math.max(0, relativeNowMs - fixLifecycle.lastFixAcquiredAtMs)
         : null;

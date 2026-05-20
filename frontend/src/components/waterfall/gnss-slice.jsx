@@ -165,6 +165,15 @@ function getGnssFixStatusFromOutput(output) {
     return (hasCoords || hasFixQuality || hasPvt) ? 'FIX' : 'NO FIX';
 }
 
+function streamMatchesLifecycle(lifecycle, sessionId, vfo) {
+    const hasActiveStream = lifecycle.activeSessionId !== null || lifecycle.activeVfo !== null;
+    if (!hasActiveStream) {
+        return true;
+    }
+    return String(sessionId ?? '') === String(lifecycle.activeSessionId ?? '')
+        && String(vfo ?? '') === String(lifecycle.activeVfo ?? '');
+}
+
 const initialState = {
     decodedInsightsActiveTab: 'packets',
     gnssSatellitesSortModel: [{ field: 'satelliteId', sort: 'asc' }],
@@ -197,6 +206,11 @@ const initialState = {
         lastFixLostAtMs: null,
         lastFixDurationMs: null,
         lastSignalAtMs: null,
+        decoderStartedAtMs: null,
+        noFixSinceAtMs: null,
+        activeSessionId: null,
+        activeVfo: null,
+        activeDecoderId: null,
     },
     // UI-only rolling fix quality samples for the last 30 minutes.
     gnssFixQualityTimeline: [],
@@ -243,9 +257,109 @@ export const gnssSlice = createSlice({
                 lastFixLostAtMs: null,
                 lastFixDurationMs: null,
                 lastSignalAtMs: null,
+                decoderStartedAtMs: null,
+                noFixSinceAtMs: null,
+                activeSessionId: null,
+                activeVfo: null,
+                activeDecoderId: null,
             };
             state.gnssFixQualityTimeline = [];
             state.gnssSatellitesById = {};
+        },
+        updateGnssFixLifecycleFromStatus: (state, action) => {
+            const payload = action.payload || {};
+            if (payload.decoder_type !== 'gnss') {
+                return;
+            }
+
+            const status = String(payload.status || '').toLowerCase();
+            const timestampMs = Number(payload.timestamp) * 1000;
+            const hasTimestamp = Number.isFinite(timestampMs);
+            const lifecycle = state.gnssFixLifecycle;
+
+            if (status === 'starting') {
+                // A fresh GNSS decoder instance owns lifecycle timing from this point.
+                state.receiverSnapshot = {
+                    lastUpdateMs: null,
+                    latitude: null,
+                    longitude: null,
+                    altitudeM: null,
+                    fixQuality: null,
+                    satellites: null,
+                    utcTime: null,
+                };
+                state.activitySnapshot = {
+                    lastHeartbeatMs: null,
+                    hasActivity: false,
+                    hasPvt: false,
+                    packetsPerSec: 0,
+                    monitorObsPerSec: 0,
+                    lossOfLockTotal: 0,
+                    lossOfLockDelta: 0,
+                };
+                state.gnssFixQualityTimeline = [];
+                state.gnssSatellitesById = {};
+
+                state.gnssFixLifecycle = {
+                    currentStatus: 'NO DATA',
+                    currentFixStartedAtMs: null,
+                    lastFixAcquiredAtMs: null,
+                    lastClosedFixAcquiredAtMs: null,
+                    lastFixLostAtMs: null,
+                    lastFixDurationMs: null,
+                    lastSignalAtMs: null,
+                    decoderStartedAtMs: hasTimestamp ? timestampMs : null,
+                    noFixSinceAtMs: hasTimestamp ? timestampMs : null,
+                    activeSessionId: payload.session_id ?? null,
+                    activeVfo: payload.vfo ?? null,
+                    activeDecoderId: payload.decoder_id ?? null,
+                };
+                return;
+            }
+
+            if (!streamMatchesLifecycle(lifecycle, payload.session_id, payload.vfo)) {
+                return;
+            }
+
+            if (status === 'idle' || status === 'error' || status === 'closed') {
+                lifecycle.currentStatus = 'NO DATA';
+                lifecycle.currentFixStartedAtMs = null;
+                lifecycle.decoderStartedAtMs = null;
+                lifecycle.noFixSinceAtMs = null;
+                lifecycle.activeSessionId = null;
+                lifecycle.activeVfo = null;
+                lifecycle.activeDecoderId = null;
+                return;
+            }
+
+            // Reconnect/resubscribe fallback: if a GNSS decoder is already running and the
+            // UI missed the explicit "starting" status, bootstrap ownership/timer from the
+            // first non-terminal status we do receive (e.g., listening/tracking).
+            if (
+                status
+                && lifecycle.activeSessionId === null
+                && lifecycle.activeVfo === null
+            ) {
+                lifecycle.activeSessionId = payload.session_id ?? null;
+                lifecycle.activeVfo = payload.vfo ?? null;
+                lifecycle.activeDecoderId = payload.decoder_id ?? null;
+
+                if (hasTimestamp) {
+                    lifecycle.decoderStartedAtMs = timestampMs;
+                    if (lifecycle.currentStatus !== 'FIX' && lifecycle.noFixSinceAtMs === null) {
+                        lifecycle.noFixSinceAtMs = timestampMs;
+                    }
+                }
+                return;
+            }
+
+            // Keep decoder identity fresh for the active stream.
+            if (
+                payload.decoder_id !== undefined
+                && streamMatchesLifecycle(lifecycle, payload.session_id, payload.vfo)
+            ) {
+                lifecycle.activeDecoderId = payload.decoder_id;
+            }
         },
         updateGnssFixLifecycleFromOutput: (state, action) => {
             const payload = action.payload || {};
@@ -260,6 +374,11 @@ export const gnssSlice = createSlice({
 
             const output = payload.output || {};
             const eventType = String(output.event || '').toLowerCase();
+            const lifecycle = state.gnssFixLifecycle;
+
+            if (!streamMatchesLifecycle(lifecycle, payload.session_id, payload.vfo)) {
+                return;
+            }
 
             if (eventType === 'gnss_activity') {
                 const activity = state.activitySnapshot;
@@ -424,10 +543,16 @@ export const gnssSlice = createSlice({
                 return;
             }
 
-            const lifecycle = state.gnssFixLifecycle;
             lifecycle.lastSignalAtMs = timestampMs;
 
             if (derivedStatus === lifecycle.currentStatus) {
+                if (
+                    derivedStatus === 'NO FIX'
+                    && lifecycle.noFixSinceAtMs === null
+                    && lifecycle.decoderStartedAtMs !== null
+                ) {
+                    lifecycle.noFixSinceAtMs = timestampMs;
+                }
                 return;
             }
 
@@ -435,16 +560,24 @@ export const gnssSlice = createSlice({
                 lifecycle.currentStatus = 'FIX';
                 lifecycle.currentFixStartedAtMs = timestampMs;
                 lifecycle.lastFixAcquiredAtMs = timestampMs;
+                lifecycle.noFixSinceAtMs = null;
                 return;
             }
 
-            if (lifecycle.currentStatus === 'FIX' && lifecycle.currentFixStartedAtMs !== null) {
+            const wasFix = lifecycle.currentStatus === 'FIX';
+            if (wasFix && lifecycle.currentFixStartedAtMs !== null) {
                 lifecycle.lastClosedFixAcquiredAtMs = lifecycle.currentFixStartedAtMs;
                 lifecycle.lastFixDurationMs = Math.max(0, timestampMs - lifecycle.currentFixStartedAtMs);
             }
             lifecycle.currentStatus = 'NO FIX';
             lifecycle.currentFixStartedAtMs = null;
             lifecycle.lastFixLostAtMs = timestampMs;
+            if (
+                wasFix
+                || (lifecycle.noFixSinceAtMs === null && lifecycle.decoderStartedAtMs !== null)
+            ) {
+                lifecycle.noFixSinceAtMs = timestampMs;
+            }
         },
     },
 });
@@ -453,6 +586,7 @@ export const {
     setDecodedInsightsActiveTab,
     setGnssSatellitesSortModel,
     resetGnssFixLifecycle,
+    updateGnssFixLifecycleFromStatus,
     updateGnssFixLifecycleFromOutput,
 } = gnssSlice.actions;
 

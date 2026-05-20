@@ -61,7 +61,11 @@ import {
     setErrorDialogOpen,
     setStartStreamingLoading,
 } from '../components/waterfall/waterfall-slice.jsx';
-import { resetGnssFixLifecycle, updateGnssFixLifecycleFromOutput } from '../components/waterfall/gnss-slice.jsx';
+import {
+    resetGnssFixLifecycle,
+    updateGnssFixLifecycleFromStatus,
+    updateGnssFixLifecycleFromOutput,
+} from '../components/waterfall/gnss-slice.jsx';
 import { updateAllVFOStates, setVFOProperty } from '../components/waterfall/vfo-marker/vfo-slice.jsx';
 import { fetchFiles } from '../components/filebrowser/filebrowser-slice.jsx';
 import {
@@ -666,8 +670,10 @@ export const useSocketEventHandlers = (socket) => {
             switch (data.type) {
                 case 'decoder-status':
                     // GNSS decoder restart: clear GNSS table/fix timeline so UI reflects a fresh session.
+                    if (data.decoder_type === 'gnss') {
+                        dispatch(updateGnssFixLifecycleFromStatus(data));
+                    }
                     if (data.decoder_type === 'gnss' && String(data.status || '').toLowerCase() === 'starting') {
-                        dispatch(resetGnssFixLifecycle());
                         store.dispatch(clearGnssOutputsForDecoder({
                             session_id: data.session_id,
                             vfo: data.vfo,

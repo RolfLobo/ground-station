@@ -1,13 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import reducer, { resetGnssFixLifecycle, updateGnssFixLifecycleFromOutput } from '../gnss-slice.jsx';
+import reducer, {
+    resetGnssFixLifecycle,
+    updateGnssFixLifecycleFromOutput,
+    updateGnssFixLifecycleFromStatus,
+} from '../gnss-slice.jsx';
 
 describe('waterfall gnss fix lifecycle', () => {
     it('accepts backend-authored gnss_fix_status for fix transitions', () => {
         let state = reducer(undefined, { type: '@@INIT' });
 
+        state = reducer(state, updateGnssFixLifecycleFromStatus({
+            decoder_type: 'gnss',
+            session_id: 'session-1',
+            vfo: 2,
+            decoder_id: 'decoder-1',
+            status: 'starting',
+            timestamp: 99,
+        }));
+
         state = reducer(state, updateGnssFixLifecycleFromOutput({
             decoder_type: 'gnss',
             timestamp: 100,
+            session_id: 'session-1',
+            vfo: 2,
             output: {
                 gnss_fix_status: 'FIX',
             },
@@ -20,6 +35,8 @@ describe('waterfall gnss fix lifecycle', () => {
         state = reducer(state, updateGnssFixLifecycleFromOutput({
             decoder_type: 'gnss',
             timestamp: 106,
+            session_id: 'session-1',
+            vfo: 2,
             output: {
                 gnss_fix_status: 'NO FIX',
             },
@@ -30,6 +47,95 @@ describe('waterfall gnss fix lifecycle', () => {
         expect(state.gnssFixLifecycle.lastClosedFixAcquiredAtMs).toBe(100_000);
         expect(state.gnssFixLifecycle.lastFixLostAtMs).toBe(106_000);
         expect(state.gnssFixLifecycle.lastFixDurationMs).toBe(6_000);
+        expect(state.gnssFixLifecycle.noFixSinceAtMs).toBe(106_000);
+    });
+
+    it('starts no-fix timer on gnss decoder starting and keeps it until first fix', () => {
+        let state = reducer(undefined, { type: '@@INIT' });
+
+        state = reducer(state, updateGnssFixLifecycleFromStatus({
+            decoder_type: 'gnss',
+            session_id: 'session-start',
+            vfo: 1,
+            decoder_id: 'decoder-start',
+            status: 'starting',
+            timestamp: 50,
+        }));
+
+        expect(state.gnssFixLifecycle.decoderStartedAtMs).toBe(50_000);
+        expect(state.gnssFixLifecycle.noFixSinceAtMs).toBe(50_000);
+        expect(state.gnssFixLifecycle.activeSessionId).toBe('session-start');
+        expect(state.gnssFixLifecycle.activeVfo).toBe(1);
+        expect(state.gnssFixLifecycle.activeDecoderId).toBe('decoder-start');
+
+        state = reducer(state, updateGnssFixLifecycleFromOutput({
+            decoder_type: 'gnss',
+            session_id: 'session-start',
+            vfo: 1,
+            timestamp: 55,
+            output: {
+                gnss_fix_status: 'NO FIX',
+            },
+        }));
+        expect(state.gnssFixLifecycle.noFixSinceAtMs).toBe(50_000);
+
+        state = reducer(state, updateGnssFixLifecycleFromOutput({
+            decoder_type: 'gnss',
+            session_id: 'session-start',
+            vfo: 1,
+            timestamp: 60,
+            output: {
+                gnss_fix_status: 'FIX',
+            },
+        }));
+        expect(state.gnssFixLifecycle.noFixSinceAtMs).toBeNull();
+
+        state = reducer(state, updateGnssFixLifecycleFromOutput({
+            decoder_type: 'gnss',
+            session_id: 'session-start',
+            vfo: 1,
+            timestamp: 70,
+            output: {
+                gnss_fix_status: 'NO FIX',
+            },
+        }));
+        expect(state.gnssFixLifecycle.noFixSinceAtMs).toBe(70_000);
+    });
+
+    it('does not start no-fix timer before gnss starting status is seen', () => {
+        let state = reducer(undefined, { type: '@@INIT' });
+
+        state = reducer(state, updateGnssFixLifecycleFromOutput({
+            decoder_type: 'gnss',
+            session_id: 'session-x',
+            vfo: 4,
+            timestamp: 80,
+            output: {
+                gnss_fix_status: 'NO FIX',
+            },
+        }));
+
+        expect(state.gnssFixLifecycle.currentStatus).toBe('NO FIX');
+        expect(state.gnssFixLifecycle.noFixSinceAtMs).toBeNull();
+    });
+
+    it('bootstraps no-fix timer from first non-terminal gnss status when starting was missed', () => {
+        let state = reducer(undefined, { type: '@@INIT' });
+
+        state = reducer(state, updateGnssFixLifecycleFromStatus({
+            decoder_type: 'gnss',
+            session_id: 'session-reconnect',
+            vfo: 1,
+            decoder_id: 'decoder-reconnect',
+            status: 'tracking',
+            timestamp: 200,
+        }));
+
+        expect(state.gnssFixLifecycle.activeSessionId).toBe('session-reconnect');
+        expect(state.gnssFixLifecycle.activeVfo).toBe(1);
+        expect(state.gnssFixLifecycle.activeDecoderId).toBe('decoder-reconnect');
+        expect(state.gnssFixLifecycle.decoderStartedAtMs).toBe(200_000);
+        expect(state.gnssFixLifecycle.noFixSinceAtMs).toBe(200_000);
     });
 
     it('resets lifecycle to NO DATA for a new streaming session', () => {
@@ -54,6 +160,11 @@ describe('waterfall gnss fix lifecycle', () => {
             lastFixLostAtMs: null,
             lastFixDurationMs: null,
             lastSignalAtMs: null,
+            decoderStartedAtMs: null,
+            noFixSinceAtMs: null,
+            activeSessionId: null,
+            activeVfo: null,
+            activeDecoderId: null,
         });
         expect(state.receiverSnapshot).toEqual({
             lastUpdateMs: null,
