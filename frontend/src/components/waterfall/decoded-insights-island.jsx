@@ -36,7 +36,7 @@ import { formatDateTime, formatTime } from '../../utils/date-time.js';
 import {
     setDecodedInsightsActiveTab,
     setGnssSatellitesSortModel,
-} from './waterfall-slice.jsx';
+} from './gnss-slice.jsx';
 
 const CONSTELLATION_BY_CODE = {
     G: 'GPS',
@@ -213,9 +213,9 @@ const DecodedInsightsIsland = React.memo(function DecodedInsightsIsland() {
         (state) => ({
             outputs: state.decoders.outputs,
             gridEditable: state.waterfall.gridEditable,
-            decodedInsightsActiveTab: state.waterfall.decodedInsightsActiveTab,
-            gnssSatellitesSortModel: state.waterfall.gnssSatellitesSortModel,
-            gnssFixLifecycle: state.waterfall.gnssFixLifecycle,
+            decodedInsightsActiveTab: state.gnss.decodedInsightsActiveTab,
+            gnssSatellitesSortModel: state.gnss.gnssSatellitesSortModel,
+            gnssFixLifecycle: state.gnss.gnssFixLifecycle,
         }),
         shallowEqual
     );

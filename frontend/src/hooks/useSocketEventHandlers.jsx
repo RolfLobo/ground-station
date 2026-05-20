@@ -60,8 +60,8 @@ import {
     setErrorMessage,
     setErrorDialogOpen,
     setStartStreamingLoading,
-    updateGnssFixLifecycleFromOutput,
 } from '../components/waterfall/waterfall-slice.jsx';
+import { updateGnssFixLifecycleFromOutput } from '../components/waterfall/gnss-slice.jsx';
 import { updateAllVFOStates, setVFOProperty } from '../components/waterfall/vfo-marker/vfo-slice.jsx';
 import { fetchFiles } from '../components/filebrowser/filebrowser-slice.jsx';
 import {

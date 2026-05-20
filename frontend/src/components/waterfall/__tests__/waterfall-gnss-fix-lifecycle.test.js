@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import reducer, { updateGnssFixLifecycleFromOutput } from '../waterfall-slice.jsx';
+import reducer, { updateGnssFixLifecycleFromOutput } from '../gnss-slice.jsx';
 
 describe('waterfall gnss fix lifecycle', () => {
     it('accepts backend-authored gnss_fix_status for fix transitions', () => {
