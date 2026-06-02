@@ -464,6 +464,9 @@ const TargetMapMapLibreRenderer = () => {
         };
     }, [skyState.daySidePolygon]);
 
+    const satelliteLat = Number(satellitePosition?.lat);
+    const satelliteLon = Number(satellitePosition?.lon);
+    const hasSatellitePosition = Number.isFinite(satelliteLat) && Number.isFinite(satelliteLon);
     const liveMap = mapRef.current?.getMap();
     const [tooltipDirection, setTooltipDirection] = useState(MAPLIBRE_TOOLTIP_DIRECTIONS[0]);
 
@@ -594,11 +597,14 @@ const TargetMapMapLibreRenderer = () => {
         }
     }, [dispatch, lockOnTarget, socket]);
 
-    const satelliteLat = Number(satellitePosition?.lat);
-    const satelliteLon = Number(satellitePosition?.lon);
-    const hasSatellitePosition = Number.isFinite(satelliteLat) && Number.isFinite(satelliteLon);
-    const altitudeLabel = humanizeAltitude(satellitePosition?.alt, 0);
-    const velocityLabel = humanizeVelocity(satellitePosition?.vel, 2);
+    const humanizedAltitude = humanizeAltitude(satellitePosition?.alt, 0);
+    const altitudeLabel = humanizedAltitude === 'Invalid altitude'
+        ? '-- km'
+        : `${humanizedAltitude} km`;
+    const humanizedVelocity = humanizeVelocity(satellitePosition?.vel, 2);
+    const velocityLabel = humanizedVelocity === 'Invalid velocity'
+        ? '-- km/s'
+        : `${humanizedVelocity} km/s`;
 
     return (
         <Box sx={{height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0}}>
