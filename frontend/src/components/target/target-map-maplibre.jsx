@@ -293,6 +293,7 @@ const TargetMapMapLibreRenderer = ({projection = MAPLIBRE_PROJECTION_MERCATOR}) 
     const {location} = useSelector((state) => state.location);
 
     const mapRef = useRef(null);
+    const mapViewportRef = useRef(null);
     const popupRef = useRef(null);
     const normalizedMapEngine = useMemo(
         () => normalizeMapEngine(mapEngine),
@@ -534,6 +535,19 @@ const TargetMapMapLibreRenderer = ({projection = MAPLIBRE_PROJECTION_MERCATOR}) 
         liveMap.flyTo({center: [lon, lat], zoom: liveMap.getZoom(), animate: false});
     }, [isGlobeProjection, liveMap, lockOnTarget, satelliteCoverage, satellitePosition?.lat, satellitePosition?.lon, showSatelliteCoverage]);
 
+    useEffect(() => {
+        if (!liveMap) return undefined;
+        const handleFullscreenChange = () => {
+            requestAnimationFrame(() => {
+                liveMap.resize?.();
+            });
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        };
+    }, [liveMap]);
+
     const updateTooltipOrientation = useCallback(() => {
         if (!liveMap || !showTooltip || !hasSatellitePosition) return;
         const projectedPoint = liveMap.project([satelliteLon, satelliteLat]);
@@ -602,10 +616,10 @@ const TargetMapMapLibreRenderer = ({projection = MAPLIBRE_PROJECTION_MERCATOR}) 
     };
 
     const handleFullscreen = () => {
-        const container = liveMap?.getContainer();
-        if (!container) return;
+        const fullscreenTarget = mapViewportRef.current || liveMap?.getContainer();
+        if (!fullscreenTarget) return;
         if (!document.fullscreenElement) {
-            container.requestFullscreen?.();
+            fullscreenTarget.requestFullscreen?.();
         } else {
             document.exitFullscreen?.();
         }
@@ -673,6 +687,7 @@ const TargetMapMapLibreRenderer = ({projection = MAPLIBRE_PROJECTION_MERCATOR}) 
             </TitleBar>
 
             <Box
+                ref={mapViewportRef}
                 sx={{
                     width: '100%',
                     flex: 1,
