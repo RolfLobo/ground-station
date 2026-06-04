@@ -54,7 +54,6 @@ SCHEDULED_SYNC_FUTURE_HOURS = 24
 SCHEDULED_SYNC_STEP_MINUTES = 60
 MAX_SAMPLES_PER_TARGET = 1500
 DEFAULT_CELESTIAL_TARGETS: List[Dict[str, str]] = []
-NO_EPHEMERIS_ERROR_FRAGMENT = "No ephemeris data returned by Horizons"
 CELESTIAL_PASS_HORIZON_DEG = 0.0
 CURVE_DENSIFY_TARGET_STEP_SECONDS = 5 * 60
 CURVE_DENSIFY_MAX_INSERTS_PER_SEGMENT = 8
@@ -397,40 +396,6 @@ def _compute_adaptive_step_minutes(
         effective_step = max(effective_step, required_step)
 
     return min(max(5, effective_step), 24 * 60)
-
-
-def _is_no_ephemeris_error(error: Exception) -> bool:
-    return NO_EPHEMERIS_ERROR_FRAGMENT in str(error)
-
-
-def _iter_projection_fallbacks(
-    past_hours: int,
-    future_hours: int,
-    step_minutes: int,
-) -> List[Tuple[int, int, int]]:
-    fallbacks: List[Tuple[int, int, int]] = []
-    seen: set[Tuple[int, int, int]] = set()
-
-    # Some Horizons targets fail for very wide windows; progressively reduce span.
-    for cap_hours in (24 * 14, 24 * 7, 72, 24):
-        reduced_past = min(int(past_hours), cap_hours)
-        reduced_future = min(int(future_hours), cap_hours)
-        if reduced_past == int(past_hours) and reduced_future == int(future_hours):
-            continue
-
-        reduced_step = _compute_adaptive_step_minutes(
-            past_hours=reduced_past,
-            future_hours=reduced_future,
-            requested_step_minutes=int(step_minutes),
-            max_samples=MAX_SAMPLES_PER_TARGET,
-        )
-        candidate = (reduced_past, reduced_future, reduced_step)
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        fallbacks.append(candidate)
-
-    return fallbacks
 
 
 def _bucket_epoch(epoch: datetime, bucket_seconds: int) -> datetime:
@@ -1901,74 +1866,6 @@ async def _get_vectors_snapshot(
         return {"payload": fetched, "cache": "db-miss", "stale": False, "error": None}
     except Exception as exc:
         fetch_error: Exception = exc
-
-        if _is_no_ephemeris_error(exc) and (fetch_past_hours + fetch_future_hours) > 72:
-            for reduced_past, reduced_future, reduced_step in _iter_projection_fallbacks(
-                past_hours=fetch_past_hours,
-                future_hours=fetch_future_hours,
-                step_minutes=fetch_step_minutes,
-            ):
-                try:
-                    fetched = await asyncio.to_thread(
-                        fetch_celestial_vectors,
-                        command,
-                        epoch,
-                        reduced_past,
-                        reduced_future,
-                        reduced_step,
-                    )
-                    fetched["fallback_projection"] = {
-                        "requested": {
-                            "past_hours": fetch_past_hours,
-                            "future_hours": fetch_future_hours,
-                            "step_minutes": fetch_step_minutes,
-                        },
-                        "used": {
-                            "past_hours": reduced_past,
-                            "future_hours": reduced_future,
-                            "step_minutes": reduced_step,
-                        },
-                    }
-                    await _store_vectors_in_db(
-                        target_key=normalized_target_key,
-                        epoch_bucket_utc=epoch_bucket_utc,
-                        past_hours=reduced_past,
-                        future_hours=reduced_future,
-                        step_minutes=reduced_step,
-                        payload=fetched,
-                        source="horizons",
-                        frame=DEFAULT_FRAME,
-                        center=DEFAULT_CENTER,
-                        error=None,
-                        ttl_seconds=_resolve_db_ttl_seconds(
-                            fetch_past_hours=reduced_past,
-                            fetch_future_hours=reduced_future,
-                        ),
-                    )
-                    requested_payload = _slice_payload_to_projection_window(
-                        payload=dict(fetched),
-                        epoch=epoch,
-                        requested_past_hours=past_hours,
-                        requested_future_hours=future_hours,
-                        requested_step_minutes=step_minutes,
-                        source_past_hours=reduced_past,
-                        source_future_hours=reduced_future,
-                    )
-                    logger.info(
-                        "Horizons fallback projection succeeded for celestial "
-                        f"'{command}' (requested p={fetch_past_hours}h f={fetch_future_hours}h s={fetch_step_minutes}m, "
-                        f"used p={reduced_past}h f={reduced_future}h s={reduced_step}m)"
-                    )
-                    if requested_payload:
-                        return {
-                            "payload": requested_payload,
-                            "cache": "db-miss-window",
-                            "stale": False,
-                            "error": None,
-                        }
-                    return {"payload": fetched, "cache": "db-miss", "stale": False, "error": None}
-                except Exception as retry_exc:
-                    fetch_error = retry_exc
 
         logger.warning(f"Horizons fetch failed for celestial '{command}': {fetch_error}")
         fallback = await _load_vectors_from_db(
