@@ -599,20 +599,9 @@ class SatelliteTracker:
                 tracker = dict(tracking_state)
                 target_type = target_context["target_type"]
                 if target_type != "satellite":
-                    # Mission/body tracking is rotator-only. Keep rig state stopped and
-                    # clear transmitter selection to prevent CAT retune attempts.
+                    # Keep mission/body target typing explicit in emitted payloads
+                    # without mutating runtime tracking-state ownership.
                     tracker["target_type"] = target_type
-                    tracker["rig_state"] = "stopped"
-                    tracker["transmitter_id"] = "none"
-                    updated_tracking_state = dict(self.input_tracking_state or {})
-                    updated_tracking_state.update(
-                        {
-                            "target_type": target_type,
-                            "rig_state": "stopped",
-                            "transmitter_id": "none",
-                        }
-                    )
-                    self.input_tracking_state = updated_tracking_state
 
                 self.satellite_data = target_context["satellite_data"]
                 satellite_tles = target_context.get("satellite_tles")
@@ -685,7 +674,7 @@ class SatelliteTracker:
                 else:
                     self.rig_handler.apply_non_satellite_target_idle()
                     logger.debug(
-                        "Target %s:%s az=%.4f el=%.4f (rotator-only mode)",
+                        "Target %s:%s az=%.4f el=%.4f (non-satellite mode)",
                         target_type,
                         target_context["target_id"],
                         skypoint[0],

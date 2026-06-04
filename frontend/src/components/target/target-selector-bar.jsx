@@ -686,7 +686,7 @@ const TargetSelectorBar = React.memo(function TargetSelectorBar() {
                         rig_id: nextRigId,
                         rotator_id: nextRotatorId,
                         transmitter_id: 'none',
-                        rig_state: targetType === TARGET_TYPES.SATELLITE ? 'disconnected' : 'stopped',
+                        rig_state: 'disconnected',
                         rotator_state: 'disconnected',
                         rig_vfo: 'none',
                         vfo1: 'uplink',
@@ -804,7 +804,7 @@ const TargetSelectorBar = React.memo(function TargetSelectorBar() {
             rig_id: normalizedRigId,
             rotator_id: normalizedRotatorId,
             transmitter_id: 'none',
-            rig_state: createTargetType === TARGET_TYPES.SATELLITE ? 'disconnected' : 'stopped',
+            rig_state: 'disconnected',
             rotator_state: 'disconnected',
             rig_vfo: 'none',
             vfo1: 'uplink',
@@ -1245,9 +1245,6 @@ const TargetSelectorBar = React.memo(function TargetSelectorBar() {
                                     setCreateSelectedSatellite(null);
                                     setCreateSelectedMission(null);
                                     setCreateSelectedBodyId('');
-                                    if (nextType !== TARGET_TYPES.SATELLITE) {
-                                        setCreateSelectedRigId('none');
-                                    }
                                 }}
                             >
                                 <MenuItem value={TARGET_TYPES.SATELLITE}>Satellite</MenuItem>
@@ -1539,7 +1536,6 @@ const TargetSelectorBar = React.memo(function TargetSelectorBar() {
                             labelId="create-target-rig-label"
                             value={createSelectedRigId}
                             label="Rig"
-                            disabled={createTargetType !== TARGET_TYPES.SATELLITE}
                             onChange={(event) => setCreateSelectedRigId(String(event.target.value))}
                             renderValue={(selected) => {
                                 if (String(selected) === 'none') return 'No rig control';
@@ -1616,11 +1612,6 @@ const TargetSelectorBar = React.memo(function TargetSelectorBar() {
                             })}
                         </Select>
                     </FormControl>
-                        {createTargetType !== TARGET_TYPES.SATELLITE && (
-                            <Typography variant="caption" color="text.secondary">
-                                Mission and body targets are rotator-first. Rig controls stay idle.
-                            </Typography>
-                        )}
                     </Box>
 
                 </Box>

@@ -136,7 +136,7 @@ def _normalize_target_update_payload(value: Dict[str, Any]) -> Dict[str, Any]:
 
     payload["target_type"] = target_type
 
-    # Mission and body targets are rotator-only today. Keep rig control disabled.
+    # Normalize mission/body identity fields while preserving rig control fields.
     if target_type == "mission":
         command = str(payload.get("command") or "").strip()
         if not command:
@@ -151,10 +151,7 @@ def _normalize_target_update_payload(value: Dict[str, Any]) -> Dict[str, Any]:
         payload["body_id"] = None
         payload["norad_id"] = None
         payload["group_id"] = None
-        payload["rig_id"] = "none"
         payload["transmitter_id"] = "none"
-        payload["rig_vfo"] = "none"
-        payload["rig_state"] = RigStates.DISCONNECTED
     elif target_type == "body":
         body_id = str(payload.get("body_id") or "").strip().lower()
         if not body_id:
@@ -175,10 +172,7 @@ def _normalize_target_update_payload(value: Dict[str, Any]) -> Dict[str, Any]:
         payload["command"] = None
         payload["norad_id"] = None
         payload["group_id"] = None
-        payload["rig_id"] = "none"
         payload["transmitter_id"] = "none"
-        payload["rig_vfo"] = "none"
-        payload["rig_state"] = RigStates.DISCONNECTED
 
     return {"success": True, "value": payload}
 
