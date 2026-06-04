@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
+import { useUserTimeSettings } from '../../hooks/useUserTimeSettings.jsx';
 
 const PLANET_COLORS = {
     mercury: '#c2b280',
@@ -36,8 +38,13 @@ const OFFSCREEN_TARGET_STAGGER_PX = 14;
 const OFFSCREEN_TARGET_LABEL_DEPTH_STEP_PX = 9;
 const OFFSCREEN_TARGET_LABEL_SEARCH_STEPS = 7;
 const OFFSCREEN_TARGET_LABEL_SAFE_MARGIN_PX = 4;
+const OFFSCREEN_TARGET_SOUTH_LABEL_BIAS_PX = 24;
+const OFFSCREEN_TARGET_SOUTH_ARROW_BIAS_PX = 20;
 const MAX_BACKGROUND_RING_RADIUS_PX = 12000;
 const MAX_ZONE_LABEL_RADIUS_PX = 3600;
+const AU_IN_KM = 149597870.7;
+const KM_TO_MI = 0.621371192;
+const IMPERIAL_DISTANCE_REGIONS = new Set(['US', 'LR', 'MM']);
 const DEFAULT_DISPLAY_OPTIONS = {
     showGrid: true,
     showPlanets: true,
@@ -61,6 +68,27 @@ const normalizeViewport = (viewport) => ({
 const formatAu = (value) => {
     if (value >= 1) return `${value.toFixed(value >= 10 ? 0 : 1)} AU`;
     return `${value.toFixed(2)} AU`;
+};
+const resolveLocaleRegion = (localeTag) => {
+    const normalized = String(localeTag || '').trim();
+    if (!normalized) return '';
+
+    try {
+        if (typeof Intl !== 'undefined' && Intl.Locale) {
+            const locale = new Intl.Locale(normalized);
+            const expanded = locale.maximize();
+            return String(expanded?.region || locale?.region || '').toUpperCase();
+        }
+    } catch {
+        // Fallback parsing handles malformed/unsupported locale tags.
+    }
+
+    const [, regionPart = ''] = normalized.replace('_', '-').split('-');
+    return String(regionPart || '').toUpperCase();
+};
+const resolveDistanceUnitFromLocale = (localeTag) => {
+    const region = resolveLocaleRegion(localeTag);
+    return IMPERIAL_DISTANCE_REGIONS.has(region) ? 'mi' : 'km';
 };
 const hexToRgba = (hex, alpha) => {
     const value = String(hex || '').trim().replace('#', '');
@@ -312,6 +340,8 @@ const SolarSystemCanvas = ({
     displayOptions = DEFAULT_DISPLAY_OPTIONS,
 }) => {
     const theme = useTheme();
+    const { i18n } = useTranslation();
+    const { locale } = useUserTimeSettings();
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
     const wheelCommitTimeoutRef = useRef(null);
@@ -339,6 +369,54 @@ const SolarSystemCanvas = ({
     });
 
     const [viewport, setViewport] = useState(() => normalizeViewport(initialViewport || DEFAULT_VIEWPORT));
+    const effectiveLocale = useMemo(
+        () => locale || (typeof navigator !== 'undefined' ? navigator.language : undefined),
+        [locale],
+    );
+    const distanceUnit = useMemo(
+        () => resolveDistanceUnitFromLocale(effectiveLocale),
+        [effectiveLocale],
+    );
+    const compactLanguageLocale = useMemo(
+        () => i18n?.resolvedLanguage || i18n?.language || effectiveLocale,
+        [i18n?.language, i18n?.resolvedLanguage, effectiveLocale],
+    );
+    const formatDistanceLabel = useMemo(() => {
+        const compactOptions = {
+            notation: 'compact',
+            compactDisplay: 'short',
+            maximumFractionDigits: 1,
+        };
+        const standardOptions = {
+            maximumFractionDigits: 1,
+        };
+
+        const buildNumberFormatter = (options) => {
+            try {
+                return new Intl.NumberFormat(effectiveLocale, options);
+            } catch {
+                return new Intl.NumberFormat(undefined, options);
+            }
+        };
+
+        const compactFormatter = (() => {
+            try {
+                return new Intl.NumberFormat(compactLanguageLocale, compactOptions);
+            } catch {
+                return buildNumberFormatter(compactOptions);
+            }
+        })();
+        const standardFormatter = buildNumberFormatter(standardOptions);
+        return (distanceKm) => {
+            const normalizedDistanceKm = Number(distanceKm);
+            if (!Number.isFinite(normalizedDistanceKm)) return '';
+            const converted = Math.max(0, normalizedDistanceKm) * (distanceUnit === 'mi' ? KM_TO_MI : 1);
+            const numberText = converted >= 10000
+                ? compactFormatter.format(converted)
+                : standardFormatter.format(converted);
+            return `${numberText} ${distanceUnit}`;
+        };
+    }, [compactLanguageLocale, distanceUnit, effectiveLocale]);
 
     const planets = scene?.planets || [];
     const tracked = scene?.celestial || [];
@@ -639,6 +717,14 @@ const SolarSystemCanvas = ({
         const cx = width / 2 + viewport.panX;
         const cy = height / 2 + viewport.panY;
         const scale = viewport.zoom;
+        const viewportCenterWorldXAu = (width / 2 - cx) / scale;
+        const viewportCenterWorldYAu = (cy - height / 2) / scale;
+        const distanceKmFromViewportCenter = (worldXAu, worldYAu) => {
+            const dx = Number(worldXAu) - viewportCenterWorldXAu;
+            const dy = Number(worldYAu) - viewportCenterWorldYAu;
+            const distanceAu = Math.hypot(dx, dy);
+            return distanceAu * AU_IN_KM;
+        };
         const nearestViewportX = clamp(cx, 0, width);
         const nearestViewportY = clamp(cy, 0, height);
         const minDistanceToViewportPx = Math.hypot(nearestViewportX - cx, nearestViewportY - cy);
@@ -747,6 +833,7 @@ const SolarSystemCanvas = ({
             textWidth,
             textHeight,
             baseSideShift = 0,
+            southBias = 0,
         }) => {
             const bgPadX = 4;
             const bgPadY = 2;
@@ -768,7 +855,7 @@ const SolarSystemCanvas = ({
                 const inwardDistance = OFFSCREEN_TARGET_LABEL_GAP_PX + depthStep * OFFSCREEN_TARGET_LABEL_DEPTH_STEP_PX;
                 for (const sideShift of sideCandidates) {
                     const rawX = baseX - ux * inwardDistance + perpX * sideShift;
-                    const rawY = baseY - uy * inwardDistance + perpY * sideShift;
+                    const rawY = baseY - uy * inwardDistance + perpY * sideShift - southBias;
                     const centerX = clamp(rawX, minLabelX, maxLabelX);
                     const centerY = clamp(rawY, minLabelY, maxLabelY);
                     const box = {
@@ -1113,6 +1200,8 @@ const SolarSystemCanvas = ({
             const perpX = -uy;
             const perpY = ux;
             const stagger = offsetIndex * OFFSCREEN_TARGET_STAGGER_PX;
+            // Keep bottom-pointing indicators clear of the gesture-hint overlay.
+            const southArrowBias = uy > 0 ? uy * OFFSCREEN_TARGET_SOUTH_ARROW_BIAS_PX : 0;
 
             const tipX = clamp(
                 edgePoint.x,
@@ -1120,7 +1209,7 @@ const SolarSystemCanvas = ({
                 width - OFFSCREEN_TARGET_EDGE_INSET_PX,
             );
             const tipY = clamp(
-                edgePoint.y,
+                edgePoint.y - southArrowBias,
                 OFFSCREEN_TARGET_EDGE_INSET_PX,
                 height - OFFSCREEN_TARGET_EDGE_INSET_PX,
             );
@@ -1136,11 +1225,17 @@ const SolarSystemCanvas = ({
             ctx.stroke();
             drawArrowHead(ctx, baseX, baseY, tipX, tipY, target.color);
 
-            const text = String(target.label || '').trim();
+            const baseLabel = String(target.label || '').trim();
+            const distanceText = formatDistanceLabel(target.distanceKm);
+            const text = baseLabel && distanceText
+                ? `${baseLabel} | ${distanceText}`
+                : (baseLabel || distanceText);
             if (text) {
                 ctx.font = '11px monospace';
                 const textWidth = Math.max(8, ctx.measureText(text).width);
                 const textHeight = 10;
+                // Move labels upward when the anchor arrow points toward the bottom edge.
+                const southBias = uy > 0 ? uy * OFFSCREEN_TARGET_SOUTH_LABEL_BIAS_PX : 0;
                 const labelPlacement = findOffscreenLabelPlacement({
                     baseX,
                     baseY,
@@ -1151,6 +1246,7 @@ const SolarSystemCanvas = ({
                     textWidth,
                     textHeight,
                     baseSideShift: stagger,
+                    southBias,
                 });
                 if (!labelPlacement) {
                     ctx.restore();
@@ -1183,15 +1279,19 @@ const SolarSystemCanvas = ({
             color: '#f9c74f',
             x: cx,
             y: cy,
+            distanceKm: distanceKmFromViewportCenter(0, 0),
         });
         const earthPlanet = planets.find((planet) => String(planet?.id || '').trim().toLowerCase() === 'earth');
         if (earthPlanet && hasFiniteXYZ(earthPlanet.position_xyz_au)) {
             const [earthX, earthY] = toScreen(earthPlanet.position_xyz_au);
+            const earthWorldXAu = Number(earthPlanet.position_xyz_au[0]);
+            const earthWorldYAu = Number(earthPlanet.position_xyz_au[1]);
             offscreenAnchors.push({
                 label: 'Earth',
                 color: PLANET_COLORS.earth,
                 x: earthX,
                 y: earthY,
+                distanceKm: distanceKmFromViewportCenter(earthWorldXAu, earthWorldYAu),
             });
         }
 
@@ -1222,6 +1322,7 @@ const SolarSystemCanvas = ({
         theme.palette.mode,
         theme.palette.text.primary,
         theme.palette.text.secondary,
+        formatDistanceLabel,
         viewport.panX,
         viewport.panY,
         viewport.zoom,
