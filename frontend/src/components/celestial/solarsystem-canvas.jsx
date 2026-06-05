@@ -164,6 +164,7 @@ const hasFiniteXYZ = (position) =>
     && Number.isFinite(Number(position[2]));
 
 const HELIOCENTRIC_ORIGIN_EPSILON_AU = 1e-9;
+const SUN_LABEL_SINGLE_MODE_OFFSET_PX = 5;
 const isNearHeliocentricOriginXYZ = (position) => {
     if (!hasFiniteXYZ(position)) return false;
     return (
@@ -178,6 +179,13 @@ const isRenderableSolarBody = (body) => {
     if (id === 'sun') return true;
     const position = body?.position_xyz_au;
     return hasFiniteXYZ(position) && !isNearHeliocentricOriginXYZ(position);
+};
+const isSunLabelTarget = (body) => {
+    const id = String(body?.id || '').trim().toLowerCase();
+    const bodyId = String(body?.body_id || '').trim().toLowerCase();
+    const command = String(body?.command || '').trim().toLowerCase();
+    const name = String(body?.name || '').trim().toLowerCase();
+    return id === 'sun' || bodyId === 'sun' || command === 'sun' || name === 'sun';
 };
 
 const hasFiniteXY = (position) =>
@@ -454,6 +462,8 @@ const SolarSystemCanvas = ({
         [selectedTargetKeys],
     );
     const hasTrackedSelection = selectedTargetKeySet.size > 0;
+    const isSingleTrackedMode = (hasTrackedSelection && selectedTargetKeySet.size === 1)
+        || (Array.isArray(tracked) && tracked.length === 1);
     const asteroidZones = scene?.asteroid_zones || [];
     const asteroidResonanceGaps = scene?.asteroid_resonance_gaps || [];
     const moonOrbitRings = useMemo(() => {
@@ -1186,7 +1196,10 @@ const SolarSystemCanvas = ({
                         : isDimmed
                             ? hexToRgba(theme.palette.text.secondary, 0.45)
                             : theme.palette.text.secondary;
-                    drawLabelWithAutoOffset(body.name || body.command || 'object', sx, sy, labelColor);
+                    const labelAnchorX = (isSingleTrackedMode && isSunLabelTarget(body))
+                        ? sx + SUN_LABEL_SINGLE_MODE_OFFSET_PX
+                        : sx;
+                    drawLabelWithAutoOffset(body.name || body.command || 'object', labelAnchorX, sy, labelColor);
                 }
             });
         }
@@ -1354,6 +1367,7 @@ const SolarSystemCanvas = ({
         moonOrbitRings,
         selectedTargetKeySet,
         hasTrackedSelection,
+        isSingleTrackedMode,
         theme.palette.background.default,
         theme.palette.mode,
         theme.palette.text.primary,
