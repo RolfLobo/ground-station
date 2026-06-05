@@ -26,7 +26,7 @@ const PLANET_COLORS = {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const MIN_ZOOM = 1;
-const MAX_ZOOM = 20000;
+const MAX_ZOOM = 60000;
 const WHEEL_COMMIT_DELAY_MS = 180;
 const FOCUS_ANIMATION_DURATION_MS = 420;
 const DEFAULT_VIEWPORT = { zoom: 18, panX: 0, panY: 0 };
