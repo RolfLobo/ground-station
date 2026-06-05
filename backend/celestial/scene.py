@@ -62,7 +62,8 @@ BODY_HORIZONS_COMMANDS: Dict[str, str] = {
     "uranus": "799",
     "neptune": "899",
     # IAU-recognized dwarf planets.
-    "ceres": "1",
+    # Use small-body selector for Ceres to avoid major-body ID collision with Mercury.
+    "ceres": "1;",
     "pluto": "999",
     "haumea": "136108",
     "makemake": "136472",
@@ -1376,12 +1377,23 @@ async def _get_vectors_snapshot(
             valid_only=True,
         )
         if cached and isinstance(cached.get("payload"), dict):
-            return {
-                "payload": dict(cached["payload"]),
-                "cache": "db-hit",
-                "stale": False,
-                "error": None,
-            }
+            cached_payload = dict(cached["payload"])
+            cached_command = str(cached_payload.get("command") or "").strip()
+            requested_command = str(command or "").strip()
+            if cached_command and requested_command and cached_command != requested_command:
+                logger.warning(
+                    "Cached celestial vectors command mismatch for target '%s' (cached='%s' requested='%s'); refreshing",
+                    normalized_target_key,
+                    cached_command,
+                    requested_command,
+                )
+            else:
+                return {
+                    "payload": cached_payload,
+                    "cache": "db-hit",
+                    "stale": False,
+                    "error": None,
+                }
 
     if not allow_network_fetch:
         return {
