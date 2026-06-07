@@ -127,7 +127,7 @@ function MapSettingsIslandDialog({updateBackend}) {
                             satelliteCoverageColor: '#FFFFFF',
                             orbitProjectionDuration: 240,
                             tileLayerID: 'satellite',
-                            mapEngine: 'leaflet',
+                            mapEngine: 'maplibre',
                         }}
                         handleShowPastOrbitPath={(value)=>{dispatch(setShowPastOrbitPath(value))}}
                         handleShowFutureOrbitPath={(value)=>{dispatch(setShowFutureOrbitPath(value))}}

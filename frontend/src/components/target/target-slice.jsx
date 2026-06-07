@@ -784,7 +784,7 @@ const targetSatTrackSlice = createSlice({
         satelliteCoverageColor: '#112eed',
         orbitProjectionDuration: 60*24,
         tileLayerID: 'satellite',
-        mapEngine: 'leaflet',
+        mapEngine: MAP_ENGINE_MAPLIBRE,
         mapZoomLevel: 2,
         sunPos: null,
         moonPos: null,

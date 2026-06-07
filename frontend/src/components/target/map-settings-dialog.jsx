@@ -52,8 +52,8 @@ import {
 
 const TARGET_MAP_ENGINE_OPTIONS = [
     {id: MAP_ENGINE_LEAFLET, name: 'Leaflet'},
-    {id: MAP_ENGINE_MAPLIBRE, name: 'MapLibre (beta)'},
-    {id: MAP_ENGINE_MAPLIBRE_GLOBE, name: 'MapLibre Globe (beta)'},
+    {id: MAP_ENGINE_MAPLIBRE, name: 'MapLibre'},
+    {id: MAP_ENGINE_MAPLIBRE_GLOBE, name: 'MapLibre Globe'},
 ];
 
 function MapSettingsIslandDialog({updateBackend}) {
@@ -151,7 +151,7 @@ function MapSettingsIslandDialog({updateBackend}) {
                             satelliteCoverageColor: '#112EED',
                             orbitProjectionDuration: 60 * 24,
                             tileLayerID: 'satellite',
-                            mapEngine: 'leaflet',
+                            mapEngine: MAP_ENGINE_MAPLIBRE,
                         }}
                         handleLockOnTarget={(value)=>{dispatch(setLockOnTarget(value))}}
                         handleShowPastOrbitPath={(value)=>{dispatch(setShowPastOrbitPath(value))}}

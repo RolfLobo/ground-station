@@ -27,7 +27,7 @@ export const mapEngines = [MAP_ENGINE_LEAFLET, MAP_ENGINE_MAPLIBRE, MAP_ENGINE_M
 
 export const mapEngineOptions = [
     { id: MAP_ENGINE_LEAFLET, name: 'Leaflet' },
-    { id: MAP_ENGINE_MAPLIBRE, name: 'MapLibre (beta)' },
+    { id: MAP_ENGINE_MAPLIBRE, name: 'MapLibre' },
 ];
 
 export function normalizeMapEngine(mapEngine) {
