@@ -83,6 +83,17 @@ class CacheManager:
     def __init__(self):
         self._cache: Dict[str, Dict[str, Any]] = {}
 
+    def _get_valid_entry(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """Return cache entry when present and not expired."""
+        if cache_key not in self._cache:
+            return None
+
+        cache_entry = self._cache[cache_key]
+        if datetime.now(timezone.utc) > cache_entry["expires_at"]:
+            del self._cache[cache_key]
+            return None
+        return cache_entry
+
     def _generate_cache_key(self, prefix: str, **kwargs) -> str:
         """Generate a unique cache key based on prefix and parameters."""
         # Sort kwargs to ensure consistent key generation
@@ -95,18 +106,19 @@ class CacheManager:
 
     def get(self, cache_key: str) -> Optional[Any]:
         """Retrieve cached value if it exists and hasn't expired."""
-        if cache_key not in self._cache:
+        cache_entry = self._get_valid_entry(cache_key)
+        if cache_entry is None:
             return None
-
-        cache_entry = self._cache[cache_key]
-
-        # Check if cache has expired
-        if datetime.now(timezone.utc) > cache_entry["expires_at"]:
-            del self._cache[cache_key]
-            return None
-
         logger.debug(f"Cache hit for key: {cache_key}")
         return cache_entry["data"]
+
+    def get_entry(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """Retrieve the full cache entry (data + metadata) when still valid."""
+        return self._get_valid_entry(cache_key)
+
+    def delete(self, cache_key: str) -> None:
+        """Delete a cache entry if it exists."""
+        self._cache.pop(cache_key, None)
 
     def set(self, cache_key: str, data: Any, ttl_minutes: int = 30) -> None:
         """Store data in cache with specified time-to-live."""
@@ -148,6 +160,22 @@ class CacheManager:
 # Global cache manager instance
 cache_manager = CacheManager()
 SATELLITE_PATHS_CACHE_SCHEMA_VERSION = 2
+SATELLITE_PATHS_MIN_FUTURE_BUFFER_SECONDS = 30.0
+SATELLITE_PATHS_MIN_REMAINING_STEPS = 2
+
+
+def _resolve_min_future_buffer_seconds(step_minutes: float) -> float:
+    """Minimum remaining future window required to reuse a cached path."""
+    try:
+        step_seconds = float(step_minutes) * 60.0
+    except (TypeError, ValueError):
+        step_seconds = 60.0
+    if step_seconds <= 0:
+        step_seconds = 60.0
+    return max(
+        SATELLITE_PATHS_MIN_FUTURE_BUFFER_SECONDS,
+        step_seconds * float(SATELLITE_PATHS_MIN_REMAINING_STEPS),
+    )
 
 
 def get_cached_satellite_paths(
@@ -171,7 +199,39 @@ def get_cached_satellite_paths(
         schema=SATELLITE_PATHS_CACHE_SCHEMA_VERSION,
     )
 
-    return cache_manager.get(cache_key)
+    cache_entry = cache_manager.get_entry(cache_key)
+    if cache_entry is None:
+        return None
+
+    # A cached path is centered on the creation timestamp (past and future windows
+    # around that "now"). Refresh it early when its future window is nearly consumed,
+    # even if the generic TTL has not expired yet.
+    created_at = cache_entry.get("created_at")
+    if isinstance(created_at, datetime):
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        else:
+            created_at = created_at.astimezone(timezone.utc)
+
+        try:
+            duration_window_minutes = float(duration_minutes)
+        except (TypeError, ValueError):
+            duration_window_minutes = 0.0
+        duration_window_minutes = max(duration_window_minutes, 0.0)
+
+        future_window_end = created_at + timedelta(minutes=duration_window_minutes)
+        now_utc = datetime.now(timezone.utc)
+        minimum_future_window = timedelta(seconds=_resolve_min_future_buffer_seconds(step_minutes))
+        if now_utc + minimum_future_window >= future_window_end:
+            logger.debug(
+                "Refreshing cached satellite paths early (duration=%s step=%s)",
+                duration_minutes,
+                step_minutes,
+            )
+            cache_manager.delete(cache_key)
+            return None
+
+    return cache_entry.get("data")
 
 
 def cache_satellite_paths(
