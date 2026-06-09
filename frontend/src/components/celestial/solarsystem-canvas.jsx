@@ -265,6 +265,122 @@ const resolvePastSegmentEndIndex = (samples, sampleTimesUtc, sceneTimestampUtc) 
     return lastPastIndex >= 1 ? lastPastIndex : -1;
 };
 
+const formatSignedTimeOffset = (deltaMs) => {
+    if (!Number.isFinite(deltaMs)) return '';
+
+    const sign = deltaMs >= 0 ? '+' : '-';
+    const absoluteMs = Math.abs(deltaMs);
+    const absoluteMinutes = absoluteMs / (60 * 1000);
+    if (absoluteMinutes < 90) {
+        return `${sign}${Math.round(absoluteMinutes)}m`;
+    }
+
+    const absoluteHours = absoluteMs / (60 * 60 * 1000);
+    if (absoluteHours < 72) {
+        return `${sign}${Math.round(absoluteHours)}h`;
+    }
+
+    const absoluteDays = absoluteMs / (24 * 60 * 60 * 1000);
+    const dayPrecision = absoluteDays < 10 ? 1 : 0;
+    return `${sign}${absoluteDays.toFixed(dayPrecision)}d`;
+};
+
+const computeSelectedPathTimeCallouts = ({
+    selectedTargetKeySet,
+    tracked,
+    renderablePlanets,
+    sceneTimestampUtc,
+    themeMode,
+}) => {
+    if (!(selectedTargetKeySet instanceof Set) || selectedTargetKeySet.size !== 1) return null;
+    const selectedTargetKey = Array.from(selectedTargetKeySet)[0];
+    const normalizedSelectedTargetKey = String(selectedTargetKey || '').trim().toLowerCase();
+    if (normalizedSelectedTargetKey === 'body:sun' || normalizedSelectedTargetKey === 'mission:sun') {
+        return null;
+    }
+    const epochMs = Date.parse(String(sceneTimestampUtc || ''));
+    if (!Number.isFinite(epochMs)) return null;
+
+    let selectedPath = null;
+    const selectedTracked = (Array.isArray(tracked) ? tracked : [])
+        .find((body) => resolveTargetKey(body) === selectedTargetKey);
+    if (selectedTracked) {
+        if (isSunLabelTarget(selectedTracked)) return null;
+        const trackedSamples = Array.isArray(selectedTracked.orbit_samples_xyz_au)
+            ? selectedTracked.orbit_samples_xyz_au
+            : [];
+        if (trackedSamples.length >= 2) {
+            const trackedHexColor = resolveTrackedColor(
+                selectedTracked,
+                selectedTracked?.stale ? '#EF476F' : '#06D6A0',
+            );
+            selectedPath = {
+                source: 'tracked',
+                samples: trackedSamples,
+                sampleTimesUtc: Array.isArray(selectedTracked.orbit_sample_times_utc)
+                    ? selectedTracked.orbit_sample_times_utc
+                    : [],
+                color: hexToRgba(trackedHexColor, 0.88),
+            };
+        }
+    }
+
+    if (!selectedPath && String(selectedTargetKey).startsWith('body:')) {
+        const selectedBodyId = String(selectedTargetKey).slice('body:'.length).trim().toLowerCase();
+        if (selectedBodyId === 'sun') return null;
+        const selectedBody = (Array.isArray(renderablePlanets) ? renderablePlanets : [])
+            .find((body) => String(body?.id || '').trim().toLowerCase() === selectedBodyId);
+        const bodySamples = Array.isArray(selectedBody?.orbit_samples_xyz_au)
+            ? selectedBody.orbit_samples_xyz_au
+            : [];
+        if (selectedBody && bodySamples.length >= 2) {
+            const bodyHex = PLANET_COLORS[selectedBodyId] || '#bcbcc7';
+            selectedPath = {
+                source: 'planet',
+                samples: bodySamples,
+                sampleTimesUtc: Array.isArray(selectedBody.orbit_sample_times_utc)
+                    ? selectedBody.orbit_sample_times_utc
+                    : [],
+                color: hexToRgba(bodyHex, themeMode === 'dark' ? 0.76 : 0.84),
+            };
+        }
+    }
+
+    if (!selectedPath) return null;
+    const { source, samples, sampleTimesUtc, color } = selectedPath;
+    if (!Array.isArray(sampleTimesUtc) || sampleTimesUtc.length < 2) return null;
+
+    const pastSegmentEndIndex = resolvePastSegmentEndIndex(samples, sampleTimesUtc, sceneTimestampUtc);
+    const lastSampleIndex = samples.length - 1;
+    const callouts = [];
+
+    if (pastSegmentEndIndex >= 1) {
+        const pastStartTimeMs = Date.parse(String(sampleTimesUtc[0] || ''));
+        if (Number.isFinite(pastStartTimeMs)) {
+            callouts.push({
+                sampleIndex: 0,
+                text: formatSignedTimeOffset(pastStartTimeMs - epochMs),
+                sideHint: 'past',
+            });
+        }
+    }
+
+    const futureStartIndex = pastSegmentEndIndex >= 1 ? pastSegmentEndIndex + 1 : 0;
+    if (lastSampleIndex >= futureStartIndex) {
+        const futureEndTimeMs = Date.parse(String(sampleTimesUtc[lastSampleIndex] || ''));
+        if (Number.isFinite(futureEndTimeMs)) {
+            callouts.push({
+                sampleIndex: lastSampleIndex,
+                text: formatSignedTimeOffset(futureEndTimeMs - epochMs),
+                sideHint: 'future',
+            });
+        }
+    }
+
+    if (!callouts.length) return null;
+    return { source, samples, color, callouts };
+};
+
 const drawArrowHead = (ctx, fromX, fromY, toX, toY, color) => {
     const dx = toX - fromX;
     const dy = toY - fromY;
@@ -885,6 +1001,87 @@ const SolarSystemCanvas = ({
 
             placedLabelBoxes.push(adjustedPlacement.box);
         };
+        const drawLinkedTimeCallout = ({ anchorX, anchorY, text, strokeColor, sideHint }) => {
+            const value = String(text || '').trim();
+            if (!value) return;
+            if (!isPointInsideViewport(anchorX, anchorY, width, height, 4)) return;
+
+            ctx.save();
+            ctx.font = '10px monospace';
+            const textWidth = Math.max(10, ctx.measureText(value).width);
+            const paddingX = 5;
+            const paddingY = 3;
+            const boxWidth = textWidth + paddingX * 2;
+            const boxHeight = 16;
+
+            const horizontalBias = sideHint === 'past' ? -1 : 1;
+            const candidates = [
+                {
+                    centerX: anchorX + horizontalBias * 18,
+                    centerY: anchorY - 16,
+                },
+                {
+                    centerX: anchorX + horizontalBias * 20,
+                    centerY: anchorY + 16,
+                },
+                {
+                    centerX: anchorX - horizontalBias * 18,
+                    centerY: anchorY - 16,
+                },
+            ];
+
+            const minCenterX = LABEL_EDGE_CENTER_OFFSET_PX + boxWidth / 2;
+            const maxCenterX = width - LABEL_EDGE_CENTER_OFFSET_PX - boxWidth / 2;
+            const minCenterY = OFFSCREEN_TARGET_EDGE_INSET_PX + boxHeight / 2;
+            const maxCenterY = height - OFFSCREEN_TARGET_EDGE_INSET_PX - boxHeight / 2;
+
+            let placement = null;
+            for (const candidate of candidates) {
+                const centerX = clamp(candidate.centerX, minCenterX, maxCenterX);
+                const centerY = clamp(candidate.centerY, minCenterY, maxCenterY);
+                const box = {
+                    x: centerX - boxWidth / 2,
+                    y: centerY - boxHeight / 2,
+                    w: boxWidth,
+                    h: boxHeight,
+                };
+                if (!placedLabelBoxes.some((existing) => boxesOverlap(existing, box))) {
+                    placement = { centerX, centerY, box };
+                    break;
+                }
+            }
+            if (!placement) {
+                ctx.restore();
+                return;
+            }
+
+            const connectorEndX = placement.centerX;
+            const connectorEndY = placement.centerY;
+            ctx.strokeStyle = hexToRgba(strokeColor, theme.palette.mode === 'dark' ? 0.58 : 0.52);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(anchorX, anchorY);
+            ctx.lineTo(connectorEndX, connectorEndY);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(anchorX, anchorY, 2.2, 0, Math.PI * 2);
+            ctx.fillStyle = strokeColor;
+            ctx.fill();
+
+            ctx.fillStyle = theme.palette.mode === 'dark' ? 'rgba(10,12,16,0.78)' : 'rgba(255,255,255,0.86)';
+            ctx.fillRect(placement.box.x, placement.box.y, placement.box.w, placement.box.h);
+            ctx.strokeStyle = hexToRgba(strokeColor, 0.7);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(placement.box.x, placement.box.y, placement.box.w, placement.box.h);
+
+            ctx.fillStyle = strokeColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(value, placement.centerX, placement.centerY + 0.5);
+            placedLabelBoxes.push(placement.box);
+            ctx.restore();
+        };
         const findOffscreenLabelPlacement = ({
             baseX,
             baseY,
@@ -1080,16 +1277,31 @@ const SolarSystemCanvas = ({
                 const orbitStrokeColor = theme.palette.mode === 'dark'
                     ? 'rgba(180,180,200,0.35)'
                     : 'rgba(90,90,120,0.3)';
-                ctx.beginPath();
-                samples.forEach((sample, index) => {
-                    const [sx, sy] = toScreen(sample);
-                    if (index === 0) ctx.moveTo(sx, sy);
-                    else ctx.lineTo(sx, sy);
-                });
-                // Horizons samples represent a bounded prediction window. Keep paths open so
-                // we do not draw a synthetic end-to-start chord across the trajectory.
                 ctx.strokeStyle = orbitStrokeColor;
-                ctx.stroke();
+                const pastEndIndex = resolvePastSegmentEndIndex(
+                    samples,
+                    sampleTimesUtc,
+                    sceneTimestampUtc,
+                );
+                const lastSampleIndex = samples.length - 1;
+                const drawOrbitSegment = (startIndex, endIndex, lineDashPattern) => {
+                    if (endIndex - startIndex < 1) return;
+                    ctx.beginPath();
+                    for (let sampleIndex = startIndex; sampleIndex <= endIndex; sampleIndex += 1) {
+                        const [sx, sy] = toScreen(samples[sampleIndex]);
+                        if (sampleIndex === startIndex) ctx.moveTo(sx, sy);
+                        else ctx.lineTo(sx, sy);
+                    }
+                    // Keep paths open so we do not draw a synthetic end-to-start chord.
+                    ctx.setLineDash(lineDashPattern);
+                    ctx.stroke();
+                };
+                if (pastEndIndex >= 1) {
+                    drawOrbitSegment(0, pastEndIndex, []);
+                }
+                const futureSegmentStartIndex = pastEndIndex >= 1 ? pastEndIndex : 0;
+                drawOrbitSegment(futureSegmentStartIndex, lastSampleIndex, [3, 4]);
+                ctx.setLineDash([]);
 
                 // Show forward direction for body trajectories.
                 if (samples.length >= 2) {
@@ -1099,11 +1311,6 @@ const SolarSystemCanvas = ({
                 }
 
                 // Mark the oldest endpoint of the past segment when timestamped samples are available.
-                const pastEndIndex = resolvePastSegmentEndIndex(
-                    samples,
-                    sampleTimesUtc,
-                    sceneTimestampUtc,
-                );
                 if (pastEndIndex >= 1) {
                     const [oldestX, oldestY] = toScreen(samples[0]);
                     const [nextX, nextY] = toScreen(samples[1]);
@@ -1111,11 +1318,8 @@ const SolarSystemCanvas = ({
                     const dy = nextY - oldestY;
                     const length = Math.hypot(dx, dy);
                     if (length > 0.001) {
-                        const ux = dx / length;
-                        const uy = dy / length;
-                        const arrowTipX = oldestX + ux * 8;
-                        const arrowTipY = oldestY + uy * 8;
-                        drawArrowHead(ctx, oldestX, oldestY, arrowTipX, arrowTipY, orbitStrokeColor);
+                        // Keep the tip on the past endpoint while orienting the arrow forward in time.
+                        drawArrowHead(ctx, oldestX - dx, oldestY - dy, oldestX, oldestY, orbitStrokeColor);
                     }
                 }
             });
@@ -1187,24 +1391,61 @@ const SolarSystemCanvas = ({
             if (samples.length >= 2) {
                 const [startX, startY] = toScreen(samples[0]);
                 const [startNextX, startNextY] = toScreen(samples[1]);
-                drawArrowHead(ctx, startX, startY, startNextX, startNextY, trackedStrokeColor);
+                const startDx = startNextX - startX;
+                const startDy = startNextY - startY;
+                const startLen = Math.hypot(startDx, startDy);
+                if (startLen > 0.001) {
+                    // Keep the tip on the past endpoint while orienting the arrow forward in time.
+                    drawArrowHead(
+                        ctx,
+                        startX - startDx,
+                        startY - startDy,
+                        startX,
+                        startY,
+                        trackedStrokeColor,
+                    );
+                }
 
                 const lastIndex = samples.length - 1;
                 const [endPrevX, endPrevY] = toScreen(samples[lastIndex - 1]);
                 const [endX, endY] = toScreen(samples[lastIndex]);
-                const dirX = endX - endPrevX;
-                const dirY = endY - endPrevY;
-                const dirLen = Math.hypot(dirX, dirY);
-                if (dirLen > 0.001) {
-                    const ux = dirX / dirLen;
-                    const uy = dirY / dirLen;
-                    const arrowTipX = endX + ux * 8;
-                    const arrowTipY = endY + uy * 8;
-                    drawArrowHead(ctx, endX, endY, arrowTipX, arrowTipY, trackedStrokeColor);
-                }
+                // Keep the arrowhead tip anchored on the exact path-end endpoint.
+                drawArrowHead(ctx, endPrevX, endPrevY, endX, endY, trackedStrokeColor);
             }
 
         });
+
+        // Endpoint time offsets for the currently selected path only.
+        const selectedPathCallouts = computeSelectedPathTimeCallouts({
+            selectedTargetKeySet,
+            tracked,
+            renderablePlanets,
+            sceneTimestampUtc,
+            themeMode: theme.palette.mode,
+        });
+        const isSelectedPathVisible = selectedPathCallouts
+            && (
+                (selectedPathCallouts.source === 'tracked'
+                    && effectiveDisplayOptions.showTrackedObjects
+                    && effectiveDisplayOptions.showTrackedOrbits)
+                || (selectedPathCallouts.source === 'planet'
+                    && effectiveDisplayOptions.showPlanets
+                    && effectiveDisplayOptions.showPlanetOrbits)
+            );
+        if (isSelectedPathVisible && selectedPathCallouts) {
+            selectedPathCallouts.callouts.forEach((callout) => {
+                const sample = selectedPathCallouts.samples[callout.sampleIndex];
+                if (!hasFiniteXY(sample)) return;
+                const [anchorX, anchorY] = toScreen(sample);
+                drawLinkedTimeCallout({
+                    anchorX,
+                    anchorY,
+                    text: callout.text,
+                    strokeColor: selectedPathCallouts.color,
+                    sideHint: callout.sideHint,
+                });
+            });
+        }
 
         // Tracked object markers from Horizons.
         if (effectiveDisplayOptions.showTrackedObjects) {
