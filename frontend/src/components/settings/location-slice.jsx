@@ -23,6 +23,27 @@ import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import { toast } from '../../utils/toast-with-timestamp.jsx';
 import {getMaidenhead} from '../common/common.jsx';
 
+const STATION_TYPE_STATIONARY = 'stationary';
+const STATION_TYPE_MOBILE = 'mobile';
+
+const normalizeStationType = (value) => (
+    String(value || '').trim().toLowerCase() === STATION_TYPE_MOBILE
+        ? STATION_TYPE_MOBILE
+        : STATION_TYPE_STATIONARY
+);
+
+const normalizeHorizonMask = (value) => {
+    const parsed = Number.parseFloat(String(value ?? 0));
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(90, parsed));
+};
+
+const normalizeLocationPayload = (payload) => ({
+    ...payload,
+    station_type: normalizeStationType(payload?.station_type),
+    horizon_mask: normalizeHorizonMask(payload?.horizon_mask),
+});
+
 
 export const fetchLocationForUserId = createAsyncThunk(
     'location/fetchLocationForUser',
@@ -62,6 +83,8 @@ export const storeLocation = createAsyncThunk(
                 alt: altitude,
                 name: normalizedName,
                 callsign: normalizedCallsign || null,
+                station_type: normalizeStationType(location?.station_type),
+                horizon_mask: normalizeHorizonMask(location?.horizon_mask),
             };
             if (locationId) {
                 data.id = locationId;
@@ -145,10 +168,10 @@ const locationSlice = createSlice({
             .addCase(fetchLocationForUserId.fulfilled, (state, action) => {
                 state.locationLoading = false;
                 if (action.payload) {
-                    const payload = action.payload;
-                    state.location = action.payload;
-                    state.locationId = action.payload.id;
-                    state.altitude = action.payload.alt || 0;
+                    const payload = normalizeLocationPayload(action.payload);
+                    state.location = payload;
+                    state.locationId = payload.id;
+                    state.altitude = payload.alt || 0;
                     state.qth = getMaidenhead(parseFloat(payload.lat), parseFloat(payload.lon));
                 } else {
                     // If no location from backend, clear persisted location data
@@ -169,10 +192,10 @@ const locationSlice = createSlice({
             .addCase(storeLocation.fulfilled, (state, action) => {
                 state.locationLoading = false;
                 if (action.payload) {
-                    const payload = action.payload;
-                    state.location = action.payload;
-                    state.locationId = action.payload.id;
-                    state.altitude = action.payload.alt || state.altitude;
+                    const payload = normalizeLocationPayload(action.payload);
+                    state.location = payload;
+                    state.locationId = payload.id;
+                    state.altitude = payload.alt || state.altitude;
                     state.qth = getMaidenhead(parseFloat(payload.lat), parseFloat(payload.lon));
                     state.locationSaving = false;
                 }

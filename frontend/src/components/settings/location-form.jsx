@@ -19,20 +19,26 @@
 
 import React, { useEffect } from 'react';
 import {
+    Alert,
+    Backdrop,
     Box,
     Button,
     ButtonGroup,
+    Checkbox,
     Chip,
-    Divider,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     Fab,
+    FormControlLabel,
+    InputAdornment,
     LinearProgress,
+    MenuItem,
     Skeleton,
     Step,
-    StepLabel,
+    StepButton,
     Stepper,
     Stack,
     TextField,
@@ -85,6 +91,8 @@ const MAPLIBRE_LOCATION_MAX_ZOOM = 10;
 const LOCATION_COVERAGE_RADIUS_METERS = 400000;
 const LOCATION_COVERAGE_STEPS = 96;
 const EARTH_RADIUS_METERS = 6371008.8;
+const FULL_RESTORE_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+const FULL_RESTORE_MAX_FILE_SIZE_MB = FULL_RESTORE_MAX_FILE_SIZE_BYTES / (1024 * 1024);
 
 const createEmptyFeatureCollection = () => ({
     type: 'FeatureCollection',
@@ -165,9 +173,22 @@ const createCoverageGeoJSON = (location) => {
 
 const normalizeStationName = (value) => String(value || '').trim();
 const normalizeCallsign = (value) => String(value || '').trim().toUpperCase();
-const WIZARD_STEP_IDENTITY = 0;
-const WIZARD_STEP_COORDINATES = 1;
-const WIZARD_STEP_REVIEW = 2;
+const STATION_TYPE_STATIONARY = 'stationary';
+const STATION_TYPE_MOBILE = 'mobile';
+const normalizeStationType = (value) => (
+    String(value || '').trim().toLowerCase() === STATION_TYPE_MOBILE
+        ? STATION_TYPE_MOBILE
+        : STATION_TYPE_STATIONARY
+);
+const normalizeHorizonMask = (value) => {
+    const parsed = Number.parseFloat(String(value ?? 0));
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(90, parsed));
+};
+const WIZARD_STEP_RESTORE = 0;
+const WIZARD_STEP_IDENTITY = 1;
+const WIZARD_STEP_COORDINATES = 2;
+const WIZARD_STEP_REVIEW = 3;
 
 const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
     const { socket } = useSocket();
@@ -183,7 +204,12 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
     const [manualLatInput, setManualLatInput] = React.useState('');
     const [manualLonInput, setManualLonInput] = React.useState('');
     const [manualInputError, setManualInputError] = React.useState('');
-    const [wizardStep, setWizardStep] = React.useState(WIZARD_STEP_IDENTITY);
+    const [wizardStep, setWizardStep] = React.useState(WIZARD_STEP_RESTORE);
+    const [wizardRestoreFile, setWizardRestoreFile] = React.useState(null);
+    const [wizardRestoreDropTables, setWizardRestoreDropTables] = React.useState(true);
+    const [wizardRestoreLoading, setWizardRestoreLoading] = React.useState(false);
+    const [wizardRestoreFileInputKey, setWizardRestoreFileInputKey] = React.useState(0);
+    const [showRestoreReloadBackdrop, setShowRestoreReloadBackdrop] = React.useState(false);
     const mapRef = React.useRef(null);
 
     const {
@@ -205,6 +231,8 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
     const hasLocation = location && location.lat != null && location.lon != null;
     const stationName = location?.name || '';
     const stationCallsign = location?.callsign || '';
+    const stationType = normalizeStationType(location?.station_type);
+    const stationHorizonMask = normalizeHorizonMask(location?.horizon_mask);
     const stationLabel = normalizeStationName(stationName) || 'home';
     const stationCallsignLabel = normalizeCallsign(stationCallsign);
     const normalizedLocation = React.useMemo(() => {
@@ -288,6 +316,8 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                 altitude: Number(altitude || 0),
                 name: normalizeStationName(location.name || 'home'),
                 callsign: normalizeCallsign(location.callsign || ''),
+                stationType: normalizeStationType(location.station_type),
+                horizonMask: normalizeHorizonMask(location.horizon_mask),
                 locationId: locationId || null,
             });
         }
@@ -302,9 +332,20 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
         const altitudeChanged = Number(altitude || 0) !== Number(savedState.altitude || 0);
         const nameChanged = normalizeStationName(location.name || 'home') !== normalizeStationName(savedState.name || 'home');
         const callsignChanged = normalizeCallsign(location.callsign || '') !== normalizeCallsign(savedState.callsign || '');
+        const stationTypeChanged = normalizeStationType(location.station_type) !== normalizeStationType(savedState.stationType);
+        const horizonMaskChanged = normalizeHorizonMask(location.horizon_mask) !== normalizeHorizonMask(savedState.horizonMask);
         const locationIdChanged = (locationId || null) !== (savedState.locationId || null);
 
-        return latChanged || lonChanged || altitudeChanged || nameChanged || callsignChanged || locationIdChanged;
+        return (
+            latChanged
+            || lonChanged
+            || altitudeChanged
+            || nameChanged
+            || callsignChanged
+            || stationTypeChanged
+            || horizonMaskChanged
+            || locationIdChanged
+        );
     }, [hasLocation, savedState, location, altitude, locationId]);
 
     const canSave = hasLocation && !locationSaving;
@@ -385,6 +426,7 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
         [normalizedLocation]
     );
     const wizardSteps = [
+        t('location.wizard_step_restore', { defaultValue: 'Restore Backup (Optional)' }),
         t('location.wizard_step_identity', { defaultValue: 'Station Identity' }),
         t('location.wizard_step_coordinates', { defaultValue: 'Coordinates & Map' }),
         t('location.wizard_step_review', { defaultValue: 'Review & Save' }),
@@ -661,6 +703,8 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                 altitude: Number(altitude || 0),
                 name: normalizeStationName(location.name || 'home'),
                 callsign: normalizeCallsign(location.callsign || ''),
+                stationType: normalizeStationType(location.station_type),
+                horizonMask: normalizeHorizonMask(location.horizon_mask),
                 locationId: locationId || null,
             });
             return true;
@@ -679,6 +723,8 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
             lon: savedState.lon,
             name: savedState.name,
             callsign: savedState.callsign,
+            station_type: normalizeStationType(savedState.stationType),
+            horizon_mask: normalizeHorizonMask(savedState.horizonMask),
         }));
         dispatch(setAltitude(savedState.altitude));
         dispatch(setLocationId(savedState.locationId));
@@ -691,8 +737,27 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
         setWizardStep((currentStep) => currentStep + 1);
     };
 
+    const canNavigateToWizardStep = React.useCallback((targetStep) => {
+        if (!wizardMode) return false;
+        if (locationSaving || wizardRestoreLoading) return false;
+        if (targetStep < WIZARD_STEP_RESTORE || targetStep > WIZARD_STEP_REVIEW) return false;
+
+        // Always allow revisiting current/past steps.
+        if (targetStep <= wizardStep) return true;
+
+        // Moving to Review requires valid coordinates/location.
+        if (targetStep >= WIZARD_STEP_REVIEW && !hasLocation) return false;
+
+        return true;
+    }, [wizardMode, locationSaving, wizardRestoreLoading, wizardStep, hasLocation]);
+
+    const handleWizardStepClick = React.useCallback((targetStep) => {
+        if (!canNavigateToWizardStep(targetStep)) return;
+        setWizardStep(targetStep);
+    }, [canNavigateToWizardStep]);
+
     const handleWizardBack = () => {
-        if (!wizardMode || wizardStep === WIZARD_STEP_IDENTITY) return;
+        if (!wizardMode || wizardStep === WIZARD_STEP_RESTORE) return;
         setWizardStep((currentStep) => currentStep - 1);
     };
 
@@ -703,11 +768,149 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
         }
     };
 
+    const handleWizardRestoreFileSelect = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > FULL_RESTORE_MAX_FILE_SIZE_BYTES) {
+            toast.error(
+                t('location.wizard_restore_file_too_large', {
+                    defaultValue: `Selected file exceeds ${FULL_RESTORE_MAX_FILE_SIZE_MB} MB limit. Please choose a smaller backup file.`,
+                })
+            );
+            setWizardRestoreFile(null);
+            setWizardRestoreFileInputKey((current) => current + 1);
+            return;
+        }
+
+        setWizardRestoreFile(file);
+    };
+
+    const handleWizardRestoreDatabase = async () => {
+        if (!socket || !wizardRestoreFile) return;
+
+        if (wizardRestoreFile.size > FULL_RESTORE_MAX_FILE_SIZE_BYTES) {
+            toast.error(
+                t('location.wizard_restore_file_too_large', {
+                    defaultValue: `Selected file exceeds ${FULL_RESTORE_MAX_FILE_SIZE_MB} MB limit. Please choose a smaller backup file.`,
+                })
+            );
+            return;
+        }
+
+        setWizardRestoreLoading(true);
+        try {
+            const sqlContent = await wizardRestoreFile.text();
+            const response = await socket.emitWithAck('api.call', {
+                cmd: 'database-backup.full_restore',
+                data: {
+                    action: 'full_restore',
+                    sql: sqlContent,
+                    drop_tables: wizardRestoreDropTables,
+                },
+            });
+
+            if (response?.success) {
+                toast.success(
+                    t('location.wizard_restore_success', {
+                        defaultValue: `Backup restored successfully. ${response.tables_created} tables created, ${response.rows_inserted} rows inserted.`,
+                    })
+                );
+                setShowRestoreReloadBackdrop(true);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+                return;
+            }
+
+            toast.error(
+                t('location.wizard_restore_failed', {
+                    defaultValue: `Failed to restore database: ${response?.error || 'Unknown error'}`,
+                })
+            );
+        } catch (error) {
+            toast.error(
+                t('location.wizard_restore_error', {
+                    defaultValue: `Error restoring database: ${error?.message || String(error)}`,
+                })
+            );
+        } finally {
+            setWizardRestoreLoading(false);
+        }
+    };
+
+    const wizardRestoreSection = (
+        <SettingsSection
+            title={t('location.wizard_restore_title', { defaultValue: 'Restore Existing Backup (Optional)' })}
+            description={t('location.wizard_restore_help', {
+                defaultValue: 'If you already have a Ground Station backup, restore it now before continuing setup.',
+            })}
+            sx={locationCardSx}
+        >
+            <Stack spacing={2}>
+                <Alert severity="warning">
+                    {t('location.wizard_restore_warning', {
+                        defaultValue: 'This replaces database content with the selected backup file.',
+                    })}
+                </Alert>
+                <Alert severity="info">
+                    {t('location.wizard_restore_file_requirements', {
+                        defaultValue: `Use a full SQL backup that includes schema and data. Maximum size: ${FULL_RESTORE_MAX_FILE_SIZE_MB} MB.`,
+                    })}
+                </Alert>
+                <FormControlLabel
+                    control={(
+                        <Checkbox
+                            checked={wizardRestoreDropTables}
+                            onChange={(event) => setWizardRestoreDropTables(event.target.checked)}
+                            disabled={wizardRestoreLoading}
+                        />
+                    )}
+                    label={t('location.wizard_restore_drop_tables', {
+                        defaultValue: 'Drop existing tables before restore (recommended)',
+                    })}
+                />
+                <Button
+                    variant="outlined"
+                    component="label"
+                    disabled={wizardRestoreLoading}
+                    fullWidth
+                >
+                    {t('location.wizard_restore_select_file', { defaultValue: 'Select Full Backup SQL File' })}
+                    <input
+                        key={wizardRestoreFileInputKey}
+                        type="file"
+                        hidden
+                        accept=".sql"
+                        onChange={handleWizardRestoreFileSelect}
+                    />
+                </Button>
+                {wizardRestoreFile && (
+                    <Typography variant="body2" color="text.secondary">
+                        {t('location.wizard_restore_selected_file', {
+                            defaultValue: `Selected: ${wizardRestoreFile.name}`,
+                        })}
+                    </Typography>
+                )}
+                <Button
+                    variant="contained"
+                    color="warning"
+                    onClick={handleWizardRestoreDatabase}
+                    disabled={!wizardRestoreFile || wizardRestoreLoading}
+                >
+                    {wizardRestoreLoading
+                        ? <CircularProgress size={20} color="inherit" />
+                        : t('location.wizard_restore_button', { defaultValue: 'Restore Backup and Reload' })}
+                </Button>
+            </Stack>
+        </SettingsSection>
+    );
+
     const stationIdentitySection = (
         <SettingsSection
             title={t('location.group_station_identity', { defaultValue: 'Station Identity' })}
             description={t('location.group_station_identity_help', {
-                defaultValue: 'Name and HAM callsign used for this ground station location.',
+                defaultValue: 'Name, callsign, station type, and local horizon mask for this ground station.',
             })}
             sx={locationCardSx}
         >
@@ -720,6 +923,9 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                             updateLocationState({ name: event.target.value });
                         }}
                         disabled={locationSaving}
+                        helperText={t('location.station_name_help', {
+                            defaultValue: 'Friendly name for this ground station.',
+                        })}
                         fullWidth
                     />
                 </Grid>
@@ -731,7 +937,53 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                             updateLocationState({ callsign: event.target.value.toUpperCase() });
                         }}
                         disabled={locationSaving}
+                        helperText={t('location.ham_callsign_help', {
+                            defaultValue: 'Optional HAM callsign for this station.',
+                        })}
                         fullWidth
+                    />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                        label={t('location.station_type', { defaultValue: 'Station Type' })}
+                        value={stationType}
+                        select
+                        fullWidth
+                        disabled={locationSaving}
+                        onChange={(event) => {
+                            updateLocationState({
+                                station_type: normalizeStationType(event.target.value),
+                            });
+                        }}
+                        helperText={t('location.station_type_help', {
+                            defaultValue: 'Use stationary for fixed installs, mobile for portable setups.',
+                        })}
+                    >
+                        <MenuItem value={STATION_TYPE_STATIONARY}>
+                            {t('location.station_type_stationary', { defaultValue: 'Stationary' })}
+                        </MenuItem>
+                        <MenuItem value={STATION_TYPE_MOBILE}>
+                            {t('location.station_type_mobile', { defaultValue: 'Mobile' })}
+                        </MenuItem>
+                    </TextField>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                        label={t('location.horizon_mask', { defaultValue: 'Horizon Mask (°)' })}
+                        value={stationHorizonMask}
+                        onChange={(event) => {
+                            updateLocationState({ horizon_mask: normalizeHorizonMask(event.target.value) });
+                        }}
+                        disabled={locationSaving}
+                        fullWidth
+                        type="number"
+                        InputProps={{
+                            endAdornment: <InputAdornment position="end">°</InputAdornment>,
+                        }}
+                        inputProps={{ min: 0, max: 90, step: 'any' }}
+                        helperText={t('location.horizon_mask_help', {
+                            defaultValue: 'Minimum elevation in degrees. 0 means full horizon.',
+                        })}
                     />
                 </Grid>
             </Grid>
@@ -986,17 +1238,18 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
 
     const wizardMapSection = (
         <SettingsSection
-            title={t('location.map_section_title', { defaultValue: 'Map Selection' })}
-            description={t('location.map_instruction', {
-                defaultValue: 'Click anywhere on the map to set your station coordinates.',
-            })}
             sx={locationCardSx}
         >
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {t('location.wizard_map_click_hint', {
+                    defaultValue: 'Click on the map to set your ground station location.',
+                })}
+            </Typography>
             <Box
                 sx={{
                     position: 'relative',
                     width: '100%',
-                    height: { xs: 420, sm: 460, md: 520 },
+                    height: { xs: 370, sm: 410, md: 470 },
                     borderRadius: 1,
                     border: '1px solid',
                     borderColor: 'divider',
@@ -1166,12 +1419,28 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                         {stationCallsignLabel || t('location.state_unavailable', { defaultValue: 'Unavailable' })}
                     </Typography>
                 </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="caption" color="text.secondary">{t('location.station_type', { defaultValue: 'Station Type' })}</Typography>
+                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 600, textTransform: 'capitalize' }}>
+                        {stationType}
+                    </Typography>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="caption" color="text.secondary">{t('location.horizon_mask', { defaultValue: 'Horizon Mask (°)' })}</Typography>
+                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                        {`${stationHorizonMask}\u00b0`}
+                    </Typography>
+                </Grid>
             </Grid>
-            <Divider sx={{ my: 1.75 }} />
+        </SettingsSection>
+    );
+
+    const wizardOrbitalSyncSection = (
+        <SettingsSection
+            title={t('location.orbital_sync_title', { defaultValue: 'Orbital Data Sync' })}
+            sx={locationCardSx}
+        >
             <Stack spacing={1.1}>
-                <Typography variant="subtitle2" sx={{ color: 'text.primary' }}>
-                    {t('location.orbital_sync_title', { defaultValue: 'Orbital Data Sync' })}
-                </Typography>
                 <Typography variant="caption" color="text.secondary">
                     {t('location.orbital_sync_review_help', {
                         defaultValue: 'Current backend synchronization state for orbital data.',
@@ -1235,6 +1504,17 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
             >
                 {stationCoordinatesSection}
             </Grid>
+            <Grid
+                size={{ xs: 12, md: 12 }}
+                sx={{
+                    display: 'flex',
+                    '& > *': {
+                        width: '100%',
+                    },
+                }}
+            >
+                {wizardOrbitalSyncSection}
+            </Grid>
         </Grid>
     );
 
@@ -1287,39 +1567,75 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
     );
 
     const wizardLocationContent = (
-        <>
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <Box sx={{ px: { xs: 0, sm: 1 } }}>
-                <Stepper activeStep={wizardStep} alternativeLabel>
-                    {wizardSteps.map((label) => (
-                        <Step key={label}>
-                            <StepLabel>{label}</StepLabel>
-                        </Step>
-                    ))}
-                </Stepper>
+                <Box
+                    sx={{
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 3,
+                        py: 0.75,
+                        mb: '2em',
+                        backgroundColor: (theme) => (
+                            theme.palette.mode === 'dark'
+                                ? theme.palette.background.elevated
+                                : theme.palette.background.paper
+                        ),
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                    }}
+                >
+                    <Stepper activeStep={wizardStep} alternativeLabel>
+                        {wizardSteps.map((label, index) => (
+                            <Step key={label} completed={index < wizardStep}>
+                                <StepButton
+                                    onClick={() => handleWizardStepClick(index)}
+                                    disabled={!canNavigateToWizardStep(index)}
+                                >
+                                    {label}
+                                </StepButton>
+                            </Step>
+                        ))}
+                    </Stepper>
+                </Box>
             </Box>
 
-            {wizardStep === WIZARD_STEP_IDENTITY && (
-                <Stack spacing={2}>
-                    {stationIdentitySection}
-                </Stack>
-            )}
+            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                {wizardStep === WIZARD_STEP_RESTORE && (
+                    <Stack spacing={2}>
+                        {wizardRestoreSection}
+                    </Stack>
+                )}
 
-            {wizardStep === WIZARD_STEP_COORDINATES && (
-                <Stack spacing={2}>
-                    {wizardMapSection}
-                </Stack>
-            )}
+                {wizardStep === WIZARD_STEP_IDENTITY && (
+                    <Stack spacing={2}>
+                        {stationIdentitySection}
+                    </Stack>
+                )}
 
-            {wizardStep === WIZARD_STEP_REVIEW && (
-                <Stack spacing={2}>
-                    {wizardReviewContent}
-                </Stack>
-            )}
+                {wizardStep === WIZARD_STEP_COORDINATES && (
+                    <Stack spacing={2}>
+                        {wizardMapSection}
+                    </Stack>
+                )}
+
+                {wizardStep === WIZARD_STEP_REVIEW && (
+                    <Stack spacing={2}>
+                        {wizardReviewContent}
+                    </Stack>
+                )}
+            </Box>
 
             <SettingsActionFooter
-                statusText=""
+                statusText={wizardStep === WIZARD_STEP_RESTORE
+                    ? t('location.wizard_restore_skip_help', {
+                        defaultValue: 'You can skip this step and continue with a fresh setup.',
+                    })
+                    : ''}
                 mobileInline
                 sx={{
+                    mt: 'auto',
+                    zIndex: 4,
                     backgroundColor: (theme) => (
                         theme.palette.mode === 'dark'
                             ? alpha(theme.palette.grey[700], 0.18)
@@ -1330,7 +1646,7 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                 <Button
                     variant="outlined"
                     onClick={handleWizardBack}
-                    disabled={wizardStep === WIZARD_STEP_IDENTITY || locationSaving}
+                    disabled={wizardStep === WIZARD_STEP_RESTORE || locationSaving || wizardRestoreLoading}
                 >
                     {t('location.back', { defaultValue: 'Back' })}
                 </Button>
@@ -1349,23 +1665,32 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                     <Button
                         variant="contained"
                         onClick={handleWizardNext}
-                        disabled={!canAdvanceWizard || locationSaving}
+                        disabled={!canAdvanceWizard || locationSaving || wizardRestoreLoading}
                     >
                         {t('location.next', { defaultValue: 'Next' })}
                     </Button>
                 )}
             </SettingsActionFooter>
-        </>
+        </Box>
     );
 
     return (
         <SettingsSurface
             elevation={wizardMode ? 0 : 3}
             sx={wizardMode
-                ? { p: 0, bgcolor: 'transparent', boxShadow: 'none' }
+                ? {
+                    p: 0,
+                    bgcolor: 'transparent',
+                    boxShadow: 'none',
+                    height: '100%',
+                    width: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                }
                 : undefined}
         >
-            <Stack spacing={2}>
+            <Stack spacing={2} sx={wizardMode ? { height: '100%', minHeight: 0 } : undefined}>
                 {!wizardMode && (
                     <SettingsSurfaceHeader
                         title={t('location.ground_station_location', { defaultValue: 'Ground Station Location' })}
@@ -1440,6 +1765,18 @@ const LocationPage = ({ wizardMode = false, onWizardCompleted = null }) => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <Backdrop
+                sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+                open={showRestoreReloadBackdrop}
+            >
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <CircularProgress color="inherit" size={60} />
+                    <Typography variant="h6" sx={{ mt: 2 }}>
+                        {t('location.wizard_restore_reloading', { defaultValue: 'Reloading application...' })}
+                    </Typography>
+                </Box>
+            </Backdrop>
         </SettingsSurface>
     );
 };

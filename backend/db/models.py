@@ -309,6 +309,8 @@ class Locations(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     name = Column(String, nullable=False)
     callsign = Column(String, nullable=True)
+    station_type = Column(String, nullable=False, default="stationary", server_default="stationary")
+    horizon_mask = Column(Float, nullable=False, default=0.0, server_default="0")
     lat = Column(Float, nullable=False)
     lon = Column(Float, nullable=False)
     alt = Column(Integer, nullable=False)

@@ -38,6 +38,91 @@ from pipeline.orchestration.processmanager import process_manager
 from server import runtimestate
 from server.shutdown import cleanup_everything
 from tasks.registry import get_task
+from tlesync.state import sync_state_manager
+
+_ORBITAL_SYNC_TASK_PATTERNS = (
+    "orbital data sync",
+    "orbital_sync",
+    "orbital-sync",
+    "tle sync",
+    "tle_sync",
+)
+
+
+def _is_orbital_sync_task(task: Dict[str, Any]) -> bool:
+    """Identify orbital synchronization tasks from task manager metadata."""
+    task_name = str(task.get("name", "")).lower()
+    task_command = str(task.get("command", "")).lower()
+    return any(
+        pattern in task_name or pattern in task_command for pattern in _ORBITAL_SYNC_TASK_PATTERNS
+    )
+
+
+async def _stop_orbital_sync_before_restore(sio: Any, logger: Any) -> Dict[str, Any]:
+    """
+    Stop any running orbital sync before database restore mutates shared tables.
+
+    Restores are destructive operations and must not race with orbital sync writes.
+    """
+    background_task_manager = runtimestate.background_task_manager
+    if not background_task_manager:
+        return {"success": False, "error": "Background task manager not initialized"}
+
+    running_tasks = background_task_manager.get_running_tasks()
+    orbital_tasks = [task for task in running_tasks if _is_orbital_sync_task(task)]
+    if not orbital_tasks:
+        return {"success": True, "stopped_task_ids": []}
+
+    stopped_task_ids = []
+    failed_task_ids = []
+    for task in orbital_tasks:
+        task_id = task.get("task_id")
+        if not task_id:
+            continue
+        stopped = await background_task_manager.stop_task(task_id, timeout=10.0)
+        if stopped:
+            stopped_task_ids.append(task_id)
+        else:
+            failed_task_ids.append(task_id)
+
+    if failed_task_ids:
+        logger.error(
+            "Failed to stop orbital sync task(s) before database restore: %s",
+            ", ".join(failed_task_ids),
+        )
+        return {
+            "success": False,
+            "error": (
+                "Failed to stop orbital sync before database restore. "
+                f"Task IDs: {', '.join(failed_task_ids)}"
+            ),
+        }
+
+    # Force sync state out of "inprogress" so UI reflects the cancellation.
+    if stopped_task_ids:
+        stopped_message = "Orbital synchronization stopped before database restore"
+        current_state = dict(sync_state_manager.get_state() or {})
+        errors = list(current_state.get("errors") or [])
+        if stopped_message not in errors:
+            errors.append(stopped_message)
+        current_state.update(
+            {
+                "status": "complete",
+                "progress": 100,
+                "success": False,
+                "message": stopped_message,
+                "active_sources": [],
+                "errors": errors,
+            }
+        )
+        sync_state_manager.set_state(current_state)
+        await sio.emit("sat-sync-events", sync_state_manager.get_state())
+
+    logger.info(
+        "Stopped orbital sync task(s) before database restore: %s",
+        ", ".join(stopped_task_ids) if stopped_task_ids else "none",
+    )
+    return {"success": True, "stopped_task_ids": stopped_task_ids}
 
 
 def _typed_reply(reply: Any) -> Dict[str, Any]:
@@ -106,13 +191,16 @@ async def backup_table_restore(
     sio: Any, data: Optional[Dict], logger: Any, sid: str
 ) -> Dict[str, Any]:
     """Restore a single table from SQL INSERT statements."""
-    del sio, logger, sid
+    del sid
     payload = data or {}
     table_name = payload.get("table")
     sql = payload.get("sql")
     delete_first = payload.get("delete_first", True)
     if not table_name or not sql:
         return {"success": False, "error": "Missing table or sql parameter"}
+    stop_reply = await _stop_orbital_sync_before_restore(sio, logger)
+    if not stop_reply.get("success"):
+        return _typed_reply(stop_reply)
     return _typed_reply(await restore_table(table_name, sql, delete_first))
 
 
@@ -126,12 +214,15 @@ async def backup_full_restore(
     sio: Any, data: Optional[Dict], logger: Any, sid: str
 ) -> Dict[str, Any]:
     """Restore full database from SQL script."""
-    del sio, logger, sid
+    del sid
     payload = data or {}
     sql = payload.get("sql")
     drop_tables = payload.get("drop_tables", True)
     if not sql:
         return {"success": False, "error": "Missing sql parameter"}
+    stop_reply = await _stop_orbital_sync_before_restore(sio, logger)
+    if not stop_reply.get("success"):
+        return _typed_reply(stop_reply)
     return _typed_reply(await full_restore(sql, drop_tables))
 
 

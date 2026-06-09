@@ -1204,7 +1204,10 @@ export default function Layout() {
                     sx: {
                         borderRadius: 2,
                         boxShadow: 24,
+                        height: 'min(800px, calc(100vh - 24px))',
                         maxHeight: 'calc(100vh - 24px)',
+                        display: 'flex',
+                        flexDirection: 'column',
                     }
                 }}
             >
@@ -1223,11 +1226,25 @@ export default function Layout() {
                 >
                     {t('dashboard.location_wizard_title', 'Ground Station Setup Required')}
                 </DialogTitle>
-                <DialogContent dividers sx={{ px: 2.5, pt: '10px !important', pb: 2.5 }}>
-                    <LocationPage
-                        wizardMode
-                        onWizardCompleted={() => dispatch(setShowLocationSetupDialog(false))}
-                    />
+                <DialogContent
+                    dividers
+                    sx={{
+                        px: 2.5,
+                        pt: '10px !important',
+                        pb: 2.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flex: 1,
+                        minHeight: 0,
+                        overflow: 'hidden',
+                    }}
+                >
+                    <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+                        <LocationPage
+                            wizardMode
+                            onWizardCompleted={() => dispatch(setShowLocationSetupDialog(false))}
+                        />
+                    </Box>
                 </DialogContent>
             </Dialog>
         </Box>

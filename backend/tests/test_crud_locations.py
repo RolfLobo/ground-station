@@ -46,11 +46,27 @@ class TestLocationsCrud:
     async def test_add_location_home_is_upsert(self, db_session):
         first = await crud_locations.add_location(
             db_session,
-            {"name": "home", "callsign": "SV1ABC", "lat": 37.9838, "lon": 23.7275, "alt": 145},
+            {
+                "name": "home",
+                "callsign": "SV1ABC",
+                "station_type": "stationary",
+                "horizon_mask": 0,
+                "lat": 37.9838,
+                "lon": 23.7275,
+                "alt": 145,
+            },
         )
         second = await crud_locations.add_location(
             db_session,
-            {"name": "home", "callsign": "SV1XYZ", "lat": 40.6401, "lon": 22.9444, "alt": 12},
+            {
+                "name": "home",
+                "callsign": "SV1XYZ",
+                "station_type": "mobile",
+                "horizon_mask": 12.5,
+                "lat": 40.6401,
+                "lon": 22.9444,
+                "alt": 12,
+            },
         )
 
         assert first["success"] is True
@@ -60,6 +76,8 @@ class TestLocationsCrud:
         assert float(second["data"]["lon"]) == pytest.approx(22.9444)
         assert int(second["data"]["alt"]) == 12
         assert second["data"]["callsign"] == "SV1XYZ"
+        assert second["data"]["station_type"] == "mobile"
+        assert float(second["data"]["horizon_mask"]) == pytest.approx(12.5)
 
         all_locations = await crud_locations.fetch_all_locations(db_session)
         assert all_locations["success"] is True
@@ -86,6 +104,33 @@ class TestLocationsCrud:
         assert all_locations["data"][0]["name"] == "beta"
         assert all_locations["data"][1]["name"] == "alpha"
 
+    async def test_add_location_defaults_station_metadata(self, db_session):
+        reply = await crud_locations.add_location(
+            db_session,
+            {"name": "home", "lat": 10.0, "lon": 20.0, "alt": 1},
+        )
+
+        assert reply["success"] is True
+        assert reply["data"]["station_type"] == "stationary"
+        assert float(reply["data"]["horizon_mask"]) == pytest.approx(0.0)
+
+    async def test_add_location_normalizes_station_metadata(self, db_session):
+        reply = await crud_locations.add_location(
+            db_session,
+            {
+                "name": "home",
+                "station_type": " MOBILE ",
+                "horizon_mask": 123.4,
+                "lat": 10.0,
+                "lon": 20.0,
+                "alt": 1,
+            },
+        )
+
+        assert reply["success"] is True
+        assert reply["data"]["station_type"] == "mobile"
+        assert float(reply["data"]["horizon_mask"]) == pytest.approx(90.0)
+
 
 @pytest.mark.asyncio
 class TestLocationHandlers:
@@ -99,7 +144,15 @@ class TestLocationHandlers:
 
         reply = await locations_handler.submit_location(
             None,
-            {"name": "home", "callsign": "SV1ABC", "lat": 37.9838, "lon": 23.7275, "alt": 145},
+            {
+                "name": "home",
+                "callsign": "SV1ABC",
+                "station_type": "stationary",
+                "horizon_mask": 0,
+                "lat": 37.9838,
+                "lon": 23.7275,
+                "alt": 145,
+            },
             _Logger(),
             "sid-test",
         )
@@ -109,6 +162,8 @@ class TestLocationHandlers:
         assert reply["data"]["id"] is not None
         assert float(reply["data"]["lat"]) == pytest.approx(37.9838)
         assert reply["data"]["callsign"] == "SV1ABC"
+        assert reply["data"]["station_type"] == "stationary"
+        assert float(reply["data"]["horizon_mask"]) == pytest.approx(0.0)
 
     async def test_edit_location_returns_updated_row(self, db_session, monkeypatch):
         added = await crud_locations.add_location(
@@ -130,6 +185,8 @@ class TestLocationHandlers:
                 "id": location_id,
                 "name": "home",
                 "callsign": "SV1XYZ",
+                "station_type": "mobile",
+                "horizon_mask": 7.5,
                 "lat": 40.6401,
                 "lon": 22.9444,
                 "alt": 12,
@@ -144,3 +201,5 @@ class TestLocationHandlers:
         assert float(reply["data"]["lat"]) == pytest.approx(40.6401)
         assert float(reply["data"]["lon"]) == pytest.approx(22.9444)
         assert reply["data"]["callsign"] == "SV1XYZ"
+        assert reply["data"]["station_type"] == "mobile"
+        assert float(reply["data"]["horizon_mask"]) == pytest.approx(7.5)

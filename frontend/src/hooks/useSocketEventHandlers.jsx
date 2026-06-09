@@ -243,17 +243,17 @@ export const useSocketEventHandlers = (socket) => {
         socket.on("sat-sync-events", (data) => {
             store.dispatch(setSyncState(data));
 
-            // Set synchronizing flag based on sync status
-            if (data.status === 'in_progress' || data.status === 'started') {
-                store.dispatch(setSynchronizing(true));
-            }
+            // Keep synchronizing flag aligned to backend status, including cancellation/error transitions.
+            const isSyncRunning = data.status === 'in_progress'
+                || data.status === 'inprogress'
+                || data.status === 'started';
+            store.dispatch(setSynchronizing(isSyncRunning));
 
             if (data.status === 'complete' && data.success) {
                 // Refresh satellite groups in Redux store so all components get updated
                 if (socket && socket.connected) {
                     store.dispatch(fetchSatelliteGroups({ socket }));
                 }
-                dispatch(setSynchronizing(false));
             }
         });
 

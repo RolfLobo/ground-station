@@ -24,6 +24,38 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.common import logger, serialize_object
 from db.models import Locations
 
+STATION_TYPE_STATIONARY = "stationary"
+STATION_TYPE_MOBILE = "mobile"
+
+
+def _normalize_station_type(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized == STATION_TYPE_MOBILE:
+        return STATION_TYPE_MOBILE
+    return STATION_TYPE_STATIONARY
+
+
+def _normalize_horizon_mask(value: object) -> float:
+    if isinstance(value, bool):
+        # Avoid treating booleans as numeric user input.
+        return 0.0
+
+    if isinstance(value, (int, float)):
+        parsed = float(value)
+    elif isinstance(value, str):
+        try:
+            parsed = float(value.strip())
+        except ValueError:
+            return 0.0
+    else:
+        return 0.0
+
+    if parsed < 0:
+        return 0.0
+    if parsed > 90:
+        return 90.0
+    return parsed
+
 
 async def fetch_location(session: AsyncSession, location_id: Union[uuid.UUID, str]) -> dict:
     """
@@ -77,6 +109,8 @@ async def add_location(session: AsyncSession, data: dict) -> dict:
         if "callsign" in payload:
             normalized_callsign = str(payload.get("callsign") or "").strip().upper()
             payload["callsign"] = normalized_callsign or None
+        payload["station_type"] = _normalize_station_type(payload.get("station_type"))
+        payload["horizon_mask"] = _normalize_horizon_mask(payload.get("horizon_mask", 0.0))
         location_name = str(payload.get("name") or "").strip().lower()
 
         # Frontend currently manages a single "home" location.
@@ -144,6 +178,10 @@ async def edit_location(session: AsyncSession, data: dict) -> dict:
         if "callsign" in data:
             normalized_callsign = str(data.get("callsign") or "").strip().upper()
             data["callsign"] = normalized_callsign or None
+        if "station_type" in data:
+            data["station_type"] = _normalize_station_type(data.get("station_type"))
+        if "horizon_mask" in data:
+            data["horizon_mask"] = _normalize_horizon_mask(data.get("horizon_mask"))
 
         # Convert to UUID if it's a string
         if isinstance(location_id, str):
