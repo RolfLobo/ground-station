@@ -31,6 +31,7 @@ import { setOpenGridSettingsDialog } from './monitored-slice.jsx';
 import CelestialToolbar from './celestial-toolbar.jsx';
 import CelestialStatusBar from './celestial-statusbar.jsx';
 import SolarSystemCanvas from './solarsystem-canvas.jsx';
+import PlanetariumCanvas from './planetarium-canvas.jsx';
 import CelestialTopBar from './celestial-topbar.jsx';
 import MonitoredCelestialGridIsland from './monitored-grid-island.jsx';
 import CelestialPasses from './celestial-passes.jsx';
@@ -40,12 +41,17 @@ import SolarSystemLayoutOptionsDialog from './solar-system-layout-options-dialog
 import SettingsIcon from '@mui/icons-material/Settings';
 
 export const gridLayoutStoreName = 'celestial-layouts';
-const LAYOUT_SCHEMA_VERSION = 4;
+const LAYOUT_SCHEMA_VERSION = 6;
 const SHARED_RESIZE_HANDLES = ['s', 'sw', 'w', 'se', 'nw', 'ne', 'e'];
 const DEFAULT_PAST_HOURS = 0;
 const DEFAULT_FUTURE_HOURS = 24;
 const DEFAULT_STEP_MINUTES = 60;
 const MAX_PROJECTION_HOURS = 4320;
+const VIEW_MODE_SOLAR_SYSTEM = 'solar-system';
+const VIEW_MODE_PLANETARIUM = 'planetarium';
+const normalizeViewMode = (value) => (
+    value === VIEW_MODE_PLANETARIUM ? VIEW_MODE_PLANETARIUM : VIEW_MODE_SOLAR_SYSTEM
+);
 const parseNonNegativeNumber = (value, fallback) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed < 0) return fallback;
@@ -307,6 +313,10 @@ const CelestialMainLayout = () => {
             enableMapZooming: Boolean(mapSettings.enableMapZooming),
         };
     }, [celestialState.mapSettings]);
+    const viewMode = React.useMemo(
+        () => normalizeViewMode(celestialState.mapSettings?.viewMode),
+        [celestialState.mapSettings?.viewMode],
+    );
 
     const sceneRequestPayload = React.useMemo(
         () => ({
@@ -487,6 +497,22 @@ const CelestialMainLayout = () => {
             }),
         );
     }, [socket, celestialState.mapSettings, dispatch]);
+    const updateViewMode = React.useCallback((nextViewMode) => {
+        if (!socket) return;
+        const normalizedViewMode = normalizeViewMode(nextViewMode);
+        const existing = celestialState.mapSettings || {};
+        if (normalizeViewMode(existing.viewMode) === normalizedViewMode) return;
+
+        dispatch(
+            setCelestialMapSettings({
+                socket,
+                value: {
+                    ...existing,
+                    viewMode: normalizedViewMode,
+                },
+            }),
+        );
+    }, [socket, celestialState.mapSettings, dispatch]);
 
     const gridContents = [
         <StyledIslandParentNoScrollbar key="solar-system">
@@ -514,7 +540,9 @@ const CelestialMainLayout = () => {
                     sx={{ ...islandTitleBarSx, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                 >
                     <Box component="span">
-                        {t('celestial.solar_system_layout_title', { defaultValue: 'Solar System Layout' })}
+                        {viewMode === VIEW_MODE_PLANETARIUM
+                            ? t('celestial.planetarium_title', { defaultValue: 'Planetarium' })
+                            : t('celestial.solar_system_layout_title', { defaultValue: 'Solar System Layout' })}
                     </Box>
                     <Tooltip title="Layout options">
                         <span>
@@ -528,22 +556,24 @@ const CelestialMainLayout = () => {
                         </span>
                     </Tooltip>
                 </TitleBar>
-                <CelestialToolbar
-                    onFitAll={() => setFitAllSignal((value) => value + 1)}
-                    onZoomIn={() => setZoomInSignal((value) => value + 1)}
-                    onZoomOut={() => setZoomOutSignal((value) => value + 1)}
-                    onZoomReset={() => setResetZoomSignal((value) => value + 1)}
-                    onCenterSun={() => setCenterSunSignal((value) => value + 1)}
-                    onRefresh={handleRefreshCelestial}
-                    loading={celestialState.tracksLoading}
-                    loadingText={tracksProgressText}
-                    disabled={!socket}
-                    onToggleFullscreen={handleToggleSolarSystemFullscreen}
-                    fullscreen={solarSystemFullscreen}
-                    fullscreenLabel={t('map_controls.go_fullscreen', { defaultValue: 'Go fullscreen' })}
-                    exitFullscreenLabel={t('map_controls.exit_fullscreen', { defaultValue: 'Exit fullscreen' })}
-                    showZoomButtons={!interactionSettings.enableMapZooming}
-                />
+                {viewMode === VIEW_MODE_SOLAR_SYSTEM ? (
+                    <CelestialToolbar
+                        onFitAll={() => setFitAllSignal((value) => value + 1)}
+                        onZoomIn={() => setZoomInSignal((value) => value + 1)}
+                        onZoomOut={() => setZoomOutSignal((value) => value + 1)}
+                        onZoomReset={() => setResetZoomSignal((value) => value + 1)}
+                        onCenterSun={() => setCenterSunSignal((value) => value + 1)}
+                        onRefresh={handleRefreshCelestial}
+                        loading={celestialState.tracksLoading}
+                        loadingText={tracksProgressText}
+                        disabled={!socket}
+                        onToggleFullscreen={handleToggleSolarSystemFullscreen}
+                        fullscreen={solarSystemFullscreen}
+                        fullscreenLabel={t('map_controls.go_fullscreen', { defaultValue: 'Go fullscreen' })}
+                        exitFullscreenLabel={t('map_controls.exit_fullscreen', { defaultValue: 'Exit fullscreen' })}
+                        showZoomButtons={!interactionSettings.enableMapZooming}
+                    />
+                ) : null}
                 <Box sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
                     {celestialState.error && !hasSolarScene ? (
                         <Typography variant="body2" color="error" sx={{ p: 1 }}>
@@ -551,24 +581,32 @@ const CelestialMainLayout = () => {
                         </Typography>
                     ) : (
                         <Box sx={{ height: '100%', minHeight: 220, position: 'relative' }}>
-                            <SolarSystemCanvas
-                                scene={combinedScene}
-                                selectedTargetKeys={selectedTargetKeys}
-                                fitAllSignal={fitAllSignal}
-                                focusTargetSignal={focusTargetSignal}
-                                focusTargetKey={focusTargetKey}
-                                zoomInSignal={zoomInSignal}
-                                zoomOutSignal={zoomOutSignal}
-                                resetZoomSignal={resetZoomSignal}
-                                centerSunSignal={centerSunSignal}
-                                initialViewport={celestialState.mapSettings?.solarSystemViewport}
-                                enableMapDragging={interactionSettings.enableMapDragging}
-                                enableMapZooming={interactionSettings.enableMapZooming}
-                                onViewportCommit={handleViewportCommit}
-                                displayOptions={solarSystemDisplayOptions}
-                            />
+                            {viewMode === VIEW_MODE_PLANETARIUM ? (
+                                <PlanetariumCanvas
+                                    scene={combinedScene}
+                                    selectedTargetKeys={selectedTargetKeys}
+                                    focusTargetKey={focusTargetKey}
+                                />
+                            ) : (
+                                <SolarSystemCanvas
+                                    scene={combinedScene}
+                                    selectedTargetKeys={selectedTargetKeys}
+                                    fitAllSignal={fitAllSignal}
+                                    focusTargetSignal={focusTargetSignal}
+                                    focusTargetKey={focusTargetKey}
+                                    zoomInSignal={zoomInSignal}
+                                    zoomOutSignal={zoomOutSignal}
+                                    resetZoomSignal={resetZoomSignal}
+                                    centerSunSignal={centerSunSignal}
+                                    initialViewport={celestialState.mapSettings?.solarSystemViewport}
+                                    enableMapDragging={interactionSettings.enableMapDragging}
+                                    enableMapZooming={interactionSettings.enableMapZooming}
+                                    onViewportCommit={handleViewportCommit}
+                                    displayOptions={solarSystemDisplayOptions}
+                                />
+                            )}
 
-                            {isSolarInitialLoad ? (
+                            {isSolarInitialLoad && viewMode === VIEW_MODE_SOLAR_SYSTEM ? (
                                 <Box
                                     sx={{
                                         position: 'absolute',
@@ -709,12 +747,14 @@ const CelestialMainLayout = () => {
                 open={openSolarSystemLayoutOptionsDialog}
                 initialOptions={solarSystemDisplayOptions}
                 initialInteractionSettings={interactionSettings}
+                initialViewMode={viewMode}
                 onApplyInteractionSettings={(nextInteraction) => {
                     updateProjectionSetting({
                         enableMapDragging: Boolean(nextInteraction?.enableMapDragging),
                         enableMapZooming: Boolean(nextInteraction?.enableMapZooming),
                     });
                 }}
+                onApplyViewMode={updateViewMode}
                 onClose={() => setOpenSolarSystemLayoutOptionsDialog(false)}
             />
             <CelestialTopBar

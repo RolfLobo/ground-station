@@ -28,7 +28,15 @@ import {
     useMap,
     useMapEvents,
 } from 'react-leaflet';
-import {Box, Fab, Slider, Typography, Tooltip, IconButton, useTheme} from "@mui/material";
+import {
+    Box,
+    Fab,
+    Slider,
+    Typography,
+    Tooltip,
+    IconButton,
+    useTheme,
+} from "@mui/material";
 import { styled } from '@mui/material/styles';
 import { Tooltip as LeafletTooltip } from 'react-leaflet';
 import L from 'leaflet';
@@ -62,6 +70,7 @@ import {
     getTrackingStateFromBackend,
     setSatelliteId,
     setTargetMapSetting,
+    TARGET_VIEW_MODE_PLANETARIUM,
 } from './target-slice.jsx';
 import {getMapCrsByTileLayerId, getTileLayerById, normalizeMapEngine} from "../common/tile-layers.jsx";
 import {homeIcon, sunIcon, moonIcon, satelliteIcon2} from '../common/dataurl-icons.jsx';
@@ -79,10 +88,12 @@ import {
 import TargetNumberIcon from '../common/target-number-icon.jsx';
 import { useTooltipOrientation } from '../common/tooltip-orientation.js';
 import MapSettingsIslandDialog from './map-settings-dialog.jsx';
+import TargetCelestialViewSettingsDialog from './target-celestial-view-settings-dialog.jsx';
 import CoordinateGrid from "../common/mercator-grid.jsx";
 import createTerminatorLine from "../common/terminator-line.jsx";
 import {getSunMoonCoords} from "../common/sunmoon.jsx";
 import SolarSystemCanvas from "../celestial/solarsystem-canvas.jsx";
+import PlanetariumCanvas from "../celestial/planetarium-canvas.jsx";
 import { fetchCelestialTracks, fetchSolarSystemScene } from "../celestial/celestial-slice.jsx";
 import {
     satelliteCoverageSelector,
@@ -425,10 +436,12 @@ const LeafletTargetMapRenderer = ({}) => {
         moonPos,
         gridEditable,
         sliderTimeOffset,
-        openMapSettingsDialog,
         showGrid,
         enableMapDragging,
         enableMapZooming,
+        targetViewMode,
+        targetViewEnableDragging,
+        targetViewEnableZooming,
     } = useSelector(state => state.targetSatTrack);
     const trackerInstances = useSelector((state) => state.trackerInstances?.instances || []);
     const targetNumber = useMemo(() => {
@@ -528,7 +541,6 @@ const LeafletTargetMapRenderer = ({}) => {
             dispatch(fetchCelestialTracks({ socket, payload: nonSatellitePayload })),
         ]);
     }, [dispatch, nonSatellitePayload, socket]);
-
     const nonSatelliteFetchSignature = useMemo(() => {
         if (isSatelliteTarget || !nonSatellitePayload) return '';
         const futureHours = clampTargetPassHours(nextPassesHours);
@@ -922,7 +934,18 @@ const LeafletTargetMapRenderer = ({}) => {
                                 {nonSatelliteTargetName || '-'}
                             </Typography>
                         </Box>
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                            <Tooltip title={t('map_settings.title')}>
+                                <span>
+                                    <IconButton
+                                        size="small"
+                                        onClick={handleOpenSettings}
+                                        sx={{ padding: '2px' }}
+                                    >
+                                        <SettingsIcon fontSize="small" />
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
                             <Tooltip title="Refresh target scene">
                                 <span>
                                     <IconButton
@@ -938,6 +961,12 @@ const LeafletTargetMapRenderer = ({}) => {
                         </Box>
                     </Box>
                 </TitleBar>
+                <TargetCelestialViewSettingsDialog
+                    updateBackend={() => {
+                        const key = 'target-map-settings';
+                        dispatch(setTargetMapSetting({socket, key: key}));
+                    }}
+                />
                 <Box sx={{ width: '100%', flex: 1, minHeight: 0 }}>
                     {!nonSatellitePayload ? (
                         <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
@@ -954,14 +983,26 @@ const LeafletTargetMapRenderer = ({}) => {
                                     </Typography>
                                 </Box>
                             ) : (
-                                <SolarSystemCanvas
-                                    scene={nonSatelliteScene}
-                                    selectedTargetKeys={nonSatelliteTargetKey ? [nonSatelliteTargetKey] : []}
-                                    focusTargetSignal={focusTargetSignal}
-                                    focusTargetKey={nonSatelliteTargetKey}
-                                    instantFocus={true}
-                                    initialViewport={celestialState?.mapSettings?.solarSystemViewport || null}
-                                />
+                                targetViewMode === TARGET_VIEW_MODE_PLANETARIUM ? (
+                                    <PlanetariumCanvas
+                                        scene={nonSatelliteScene}
+                                        selectedTargetKeys={nonSatelliteTargetKey ? [nonSatelliteTargetKey] : []}
+                                        focusTargetKey={nonSatelliteTargetKey}
+                                        enableMapDragging={targetViewEnableDragging}
+                                        enableMapZooming={targetViewEnableZooming}
+                                    />
+                                ) : (
+                                    <SolarSystemCanvas
+                                        scene={nonSatelliteScene}
+                                        selectedTargetKeys={nonSatelliteTargetKey ? [nonSatelliteTargetKey] : []}
+                                        focusTargetSignal={focusTargetSignal}
+                                        focusTargetKey={nonSatelliteTargetKey}
+                                        instantFocus={true}
+                                        initialViewport={celestialState?.mapSettings?.solarSystemViewport || null}
+                                        enableMapDragging={targetViewEnableDragging}
+                                        enableMapZooming={targetViewEnableZooming}
+                                    />
+                                )
                             )}
                         </Box>
                     )}

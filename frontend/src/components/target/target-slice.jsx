@@ -38,6 +38,12 @@ import {
 const MAP_ENGINE_LEAFLET = 'leaflet';
 const MAP_ENGINE_MAPLIBRE = 'maplibre';
 const MAP_ENGINE_MAPLIBRE_GLOBE = 'maplibre-globe';
+export const TARGET_VIEW_MODE_SOLAR_SYSTEM = 'solar-system';
+export const TARGET_VIEW_MODE_PLANETARIUM = 'planetarium';
+export const TARGET_VIEW_MODE_OPTIONS = [
+    {id: TARGET_VIEW_MODE_SOLAR_SYSTEM, name: 'Solar System'},
+    {id: TARGET_VIEW_MODE_PLANETARIUM, name: 'Planetarium'},
+];
 const LEAFLET_MIN_ZOOM = 0;
 const MAPLIBRE_MIN_ZOOM = -6;
 const MAP_MAX_ZOOM = 10;
@@ -106,6 +112,10 @@ const resolveCompatibleTileLayerId = (tileLayerID, mapEngine) => {
     }
     return normalizedTileLayerID;
 };
+
+const normalizeTargetViewMode = (viewMode) => (
+    viewMode === TARGET_VIEW_MODE_PLANETARIUM ? TARGET_VIEW_MODE_PLANETARIUM : TARGET_VIEW_MODE_SOLAR_SYSTEM
+);
 
 const normalizeSource = (source) => {
     if (typeof source !== 'string') {
@@ -419,6 +429,9 @@ export const setTargetMapSetting = createAsyncThunk(
             orbitProjectionDuration: state['targetSatTrack']['orbitProjectionDuration'],
             tileLayerID: state['targetSatTrack']['tileLayerID'],
             mapEngine: state['targetSatTrack']['mapEngine'],
+            targetViewMode: normalizeTargetViewMode(state['targetSatTrack']['targetViewMode']),
+            targetViewEnableDragging: state['targetSatTrack']['targetViewEnableDragging'] ?? true,
+            targetViewEnableZooming: state['targetSatTrack']['targetViewEnableZooming'] ?? true,
         };
 
         return await new Promise((resolve, reject) => {
@@ -789,6 +802,9 @@ const targetSatTrackSlice = createSlice({
         orbitProjectionDuration: 60*24,
         tileLayerID: 'satellite',
         mapEngine: MAP_ENGINE_MAPLIBRE,
+        targetViewMode: TARGET_VIEW_MODE_SOLAR_SYSTEM,
+        targetViewEnableDragging: true,
+        targetViewEnableZooming: true,
         mapZoomLevel: 2,
         sunPos: null,
         moonPos: null,
@@ -1173,6 +1189,15 @@ const targetSatTrackSlice = createSlice({
         },
         setTileLayerID(state, action) {
             state.tileLayerID = resolveCompatibleTileLayerId(action.payload, state.mapEngine);
+        },
+        setTargetViewMode(state, action) {
+            state.targetViewMode = normalizeTargetViewMode(action.payload);
+        },
+        setTargetViewEnableDragging(state, action) {
+            state.targetViewEnableDragging = Boolean(action.payload);
+        },
+        setTargetViewEnableZooming(state, action) {
+            state.targetViewEnableZooming = Boolean(action.payload);
         },
         setMapZoomLevel(state, action) {
             state.mapZoomLevel = clampMapZoomForEngine(action.payload, state.mapEngine);
@@ -1732,6 +1757,9 @@ const targetSatTrackSlice = createSlice({
                     state.futureOrbitLineColor = action.payload['futureOrbitLineColor'];
                     state.satelliteCoverageColor = action.payload['satelliteCoverageColor'];
                     state.orbitProjectionDuration = action.payload['orbitProjectionDuration'];
+                    state.targetViewMode = normalizeTargetViewMode(action.payload['targetViewMode']);
+                    state.targetViewEnableDragging = action.payload['targetViewEnableDragging'] ?? true;
+                    state.targetViewEnableZooming = action.payload['targetViewEnableZooming'] ?? true;
                 }
             })
             .addCase(getTargetMapSettings.rejected, (state, action) => {
@@ -1824,6 +1852,9 @@ export const {
     setRotatorDisconnecting,
     setTrackerCommandStatus,
     setUITrackerValues,
+    setTargetViewMode,
+    setTargetViewEnableDragging,
+    setTargetViewEnableZooming,
 } = targetSatTrackSlice.actions;
 
 export default targetSatTrackSlice.reducer;

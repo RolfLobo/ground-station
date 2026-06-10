@@ -6,7 +6,11 @@ import {
     DialogContent,
     DialogTitle,
     FormControlLabel,
+    FormControl,
+    InputLabel,
+    MenuItem,
     Paper,
+    Select,
     Stack,
     Switch,
     Typography,
@@ -42,6 +46,11 @@ const DIALOG_CONTENT_SX = {
 };
 
 const SETTING_KEYS = Object.keys(DEFAULT_SOLAR_SYSTEM_DISPLAY_OPTIONS);
+const VIEW_MODE_SOLAR_SYSTEM = 'solar-system';
+const VIEW_MODE_PLANETARIUM = 'planetarium';
+const normalizeViewMode = (value) => (
+    value === VIEW_MODE_PLANETARIUM ? VIEW_MODE_PLANETARIUM : VIEW_MODE_SOLAR_SYSTEM
+);
 
 const SECTION_DEFS = [
     {
@@ -200,7 +209,9 @@ function SolarSystemLayoutOptionsDialog({
     open,
     initialOptions,
     initialInteractionSettings,
+    initialViewMode,
     onApplyInteractionSettings,
+    onApplyViewMode,
     onClose,
 }) {
     const dispatch = useDispatch();
@@ -211,26 +222,34 @@ function SolarSystemLayoutOptionsDialog({
         () => normalizeInteractionSettings(initialInteractionSettings),
         [initialInteractionSettings]
     );
+    const normalizedInitialViewMode = useMemo(
+        () => normalizeViewMode(initialViewMode),
+        [initialViewMode],
+    );
     const [draftSettings, setDraftSettings] = useState(initialSettings);
     const [draftInteraction, setDraftInteraction] = useState(initialInteraction);
+    const [draftViewMode, setDraftViewMode] = useState(normalizedInitialViewMode);
 
     useEffect(() => {
         if (open) {
             setDraftSettings(initialSettings);
             setDraftInteraction(initialInteraction);
+            setDraftViewMode(normalizedInitialViewMode);
         }
-    }, [open, initialInteraction, initialSettings]);
+    }, [open, initialInteraction, initialSettings, normalizedInitialViewMode]);
 
     const isDisplayDirty = !settingsEqual(draftSettings, initialSettings);
     const isInteractionDirty = (
         draftInteraction.enableMapDragging !== initialInteraction.enableMapDragging
         || draftInteraction.enableMapZooming !== initialInteraction.enableMapZooming
     );
-    const isDirty = isDisplayDirty || isInteractionDirty;
+    const isViewModeDirty = draftViewMode !== normalizedInitialViewMode;
+    const isDirty = isDisplayDirty || isInteractionDirty || isViewModeDirty;
 
     const handleCancel = () => {
         setDraftSettings(initialSettings);
         setDraftInteraction(initialInteraction);
+        setDraftViewMode(normalizedInitialViewMode);
         onClose?.();
     };
 
@@ -248,6 +267,9 @@ function SolarSystemLayoutOptionsDialog({
         });
         if (isInteractionDirty) {
             onApplyInteractionSettings?.(draftInteraction);
+        }
+        if (isViewModeDirty) {
+            onApplyViewMode?.(draftViewMode);
         }
         onClose?.();
     };
@@ -267,6 +289,23 @@ function SolarSystemLayoutOptionsDialog({
                 <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
                     <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2, pt: 2, pb: 1.5 }}>
                         <Stack spacing={1.5}>
+                            <SectionBlock
+                                title="View Mode"
+                                subtitle="Choose the primary celestial visualization for this island."
+                            >
+                                <FormControl fullWidth size="small">
+                                    <InputLabel id="celestial-view-mode-label">View</InputLabel>
+                                    <Select
+                                        labelId="celestial-view-mode-label"
+                                        value={draftViewMode}
+                                        label="View"
+                                        onChange={(event) => setDraftViewMode(normalizeViewMode(event.target.value))}
+                                    >
+                                        <MenuItem value={VIEW_MODE_SOLAR_SYSTEM}>Solar System</MenuItem>
+                                        <MenuItem value={VIEW_MODE_PLANETARIUM}>Planetarium</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </SectionBlock>
                             <SectionBlock
                                 title="Map Interaction"
                                 subtitle="Enable gesture-driven panning and zooming on the solar-system map."
@@ -340,6 +379,7 @@ function SolarSystemLayoutOptionsDialog({
                                 onClick={() => {
                                     setDraftSettings({ ...DEFAULT_SOLAR_SYSTEM_DISPLAY_OPTIONS });
                                     setDraftInteraction({ enableMapDragging: false, enableMapZooming: false });
+                                    setDraftViewMode(VIEW_MODE_SOLAR_SYSTEM);
                                 }}
                             >
                                 {t('map_settings.reset_defaults', { defaultValue: 'Reset Defaults' })}
