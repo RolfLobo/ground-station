@@ -139,7 +139,9 @@ def test_extract_row_observer_samples_prefers_supplied_earth_orbit_samples(monke
         logger=type("_DummyLogger", (), {"debug": lambda *_args, **_kwargs: None})(),
     )
 
-    assert len(samples) == 2
+    assert len(samples) > 2
+    assert samples[0]["time"] == start
+    assert samples[1]["time"] == start + timedelta(minutes=5)
     assert all("el_deg" in sample and "az_deg" in sample for sample in samples)
 
 
