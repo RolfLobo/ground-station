@@ -30,6 +30,7 @@ import {
 } from 'react-leaflet';
 import {
     Box,
+    CircularProgress,
     Fab,
     Slider,
     Typography,
@@ -94,6 +95,7 @@ import createTerminatorLine from "../common/terminator-line.jsx";
 import {getSunMoonCoords} from "../common/sunmoon.jsx";
 import SolarSystemCanvas from "../celestial/solarsystem-canvas.jsx";
 import PlanetariumCanvas from "../celestial/planetarium-canvas.jsx";
+import CelestialToolbar from '../celestial/celestial-toolbar.jsx';
 import { fetchCelestialTracks, fetchSolarSystemScene } from "../celestial/celestial-slice.jsx";
 import {
     satelliteCoverageSelector,
@@ -119,6 +121,51 @@ import {resolveDynamicOrbitPathSegments} from '../common/orbit-path-dynamic-spli
 
 const storageMapZoomValueKey = "target-map-zoom-level";
 const TARGET_SLOT_ID_PATTERN = /^target-(\d+)$/;
+
+const getFullscreenElement = () => (
+    document.fullscreenElement
+    || document.webkitFullscreenElement
+    || document.mozFullScreenElement
+    || document.msFullscreenElement
+    || null
+);
+
+const requestFullscreen = (element) => {
+    if (!element) return;
+    if (element.requestFullscreen) {
+        element.requestFullscreen();
+        return;
+    }
+    if (element.webkitRequestFullscreen) {
+        element.webkitRequestFullscreen();
+        return;
+    }
+    if (element.mozRequestFullScreen) {
+        element.mozRequestFullScreen();
+        return;
+    }
+    if (element.msRequestFullscreen) {
+        element.msRequestFullscreen();
+    }
+};
+
+const exitFullscreen = () => {
+    if (document.exitFullscreen) {
+        document.exitFullscreen();
+        return;
+    }
+    if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+        return;
+    }
+    if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+        return;
+    }
+    if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+    }
+};
 
 // Match overview tracked-satellite tooltip style.
 const TrackedSatelliteTooltip = styled(LeafletTooltip)(({ theme }) => ({
@@ -517,6 +564,13 @@ const LeafletTargetMapRenderer = ({}) => {
         [bodyId, missionCommand, nextPassesHours, nonSatelliteTargetName, targetType],
     );
     const [focusTargetSignal, setFocusTargetSignal] = useState(0);
+    const [nonSatelliteFitAllSignal, setNonSatelliteFitAllSignal] = useState(0);
+    const [nonSatelliteZoomInSignal, setNonSatelliteZoomInSignal] = useState(0);
+    const [nonSatelliteZoomOutSignal, setNonSatelliteZoomOutSignal] = useState(0);
+    const [nonSatelliteResetZoomSignal, setNonSatelliteResetZoomSignal] = useState(0);
+    const [nonSatelliteCenterSignal, setNonSatelliteCenterSignal] = useState(0);
+    const [nonSatelliteFullscreen, setNonSatelliteFullscreen] = useState(false);
+    const nonSatelliteViewportRef = useRef(null);
     const lastAutoFetchedSignatureRef = useRef('');
     const pendingFocusTargetKeyRef = useRef('');
     const [currentPastSatellitesPaths, setCurrentPastSatellitesPaths] = useState([]);
@@ -570,6 +624,25 @@ const LeafletTargetMapRenderer = ({}) => {
             setFocusTargetSignal((value) => value + 1);
         }
     }, [isSatelliteTarget, nonSatelliteTargetKey]);
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const viewportElement = nonSatelliteViewportRef.current;
+            const fullscreenElement = getFullscreenElement();
+            setNonSatelliteFullscreen(Boolean(viewportElement && fullscreenElement === viewportElement));
+        };
+
+        handleFullscreenChange();
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+        };
+    }, []);
 
     // Subscribe to map events
     function MapEventComponent({handleSetMapZoomLevel}) {
@@ -914,13 +987,49 @@ const LeafletTargetMapRenderer = ({}) => {
     const handleOpenSettings = useCallback(() => {
         dispatch(setOpenMapSettingsDialog(true));
     }, [dispatch]);
+    const handleToggleNonSatelliteFullscreen = useCallback(() => {
+        const viewportElement = nonSatelliteViewportRef.current;
+        if (!viewportElement) return;
+        const fullscreenElement = getFullscreenElement();
+        if (fullscreenElement === viewportElement) {
+            exitFullscreen();
+            return;
+        }
+        requestFullscreen(viewportElement);
+    }, []);
+    const tracksProgress = celestialState?.tracksProgress || null;
+    const tracksProgressText = useMemo(() => {
+        if (!celestialState?.tracksLoading) return '';
+        const current = Number(tracksProgress?.current);
+        const total = Number(tracksProgress?.total);
+        if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+            return `${Math.max(0, Math.min(current, total))}/${total}`;
+        }
+        return 'Loading...';
+    }, [celestialState?.tracksLoading, tracksProgress?.current, tracksProgress?.total]);
     if (!isSatelliteTarget) {
-        const scopedTargetRows = Array.isArray(nonSatelliteScene?.celestial) ? nonSatelliteScene.celestial : [];
-        const hasTargetData = scopedTargetRows.length > 0;
         const nonSatelliteTitle = targetType === 'mission' ? 'Target Map · Mission' : 'Target Map · Body';
 
         return (
-            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Box
+                ref={nonSatelliteViewportRef}
+                sx={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    '&:fullscreen': {
+                        width: '100vw',
+                        height: '100vh',
+                        bgcolor: 'background.paper',
+                    },
+                    '&:-webkit-full-screen': {
+                        width: '100vw',
+                        height: '100vh',
+                        bgcolor: 'background.paper',
+                    },
+                }}
+            >
                 <TitleBar
                     className={getClassNamesBasedOnGridEditing(gridEditable, ["window-title-bar"])}
                     sx={islandTitleBarSx}
@@ -967,6 +1076,22 @@ const LeafletTargetMapRenderer = ({}) => {
                         dispatch(setTargetMapSetting({socket, key: key, overrides}));
                     }}
                 />
+                <CelestialToolbar
+                    onFitAll={() => setNonSatelliteFitAllSignal((value) => value + 1)}
+                    onZoomIn={() => setNonSatelliteZoomInSignal((value) => value + 1)}
+                    onZoomOut={() => setNonSatelliteZoomOutSignal((value) => value + 1)}
+                    onZoomReset={() => setNonSatelliteResetZoomSignal((value) => value + 1)}
+                    onCenterSun={() => setNonSatelliteCenterSignal((value) => value + 1)}
+                    onRefresh={handleRefreshNonSatelliteScene}
+                    loading={celestialState?.tracksLoading}
+                    loadingText={tracksProgressText}
+                    disabled={!socket || !nonSatellitePayload}
+                    onToggleFullscreen={handleToggleNonSatelliteFullscreen}
+                    fullscreen={nonSatelliteFullscreen}
+                    fullscreenLabel={t('map_controls.go_fullscreen', { defaultValue: 'Go fullscreen' })}
+                    exitFullscreenLabel={t('map_controls.exit_fullscreen', { defaultValue: 'Exit fullscreen' })}
+                    showZoomButtons={!targetViewEnableZooming}
+                />
                 <Box sx={{ width: '100%', flex: 1, minHeight: 0 }}>
                     {!nonSatellitePayload ? (
                         <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
@@ -975,35 +1100,61 @@ const LeafletTargetMapRenderer = ({}) => {
                             </Typography>
                         </Box>
                     ) : (
-                        <Box sx={{ height: '100%', minHeight: 220 }}>
-                            {!hasTargetData && celestialState?.tracksLoading ? (
-                                <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
-                                    <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-                                        Loading target scene...
+                        <Box sx={{ height: '100%', minHeight: 220, position: 'relative' }}>
+                            {targetViewMode === TARGET_VIEW_MODE_PLANETARIUM ? (
+                                <PlanetariumCanvas
+                                    scene={nonSatelliteScene}
+                                    selectedTargetKeys={nonSatelliteTargetKey ? [nonSatelliteTargetKey] : []}
+                                    focusTargetKey={nonSatelliteTargetKey}
+                                    enableMapDragging={targetViewEnableDragging}
+                                    enableMapZooming={targetViewEnableZooming}
+                                    fitAllSignal={nonSatelliteFitAllSignal}
+                                    zoomInSignal={nonSatelliteZoomInSignal}
+                                    zoomOutSignal={nonSatelliteZoomOutSignal}
+                                    resetZoomSignal={nonSatelliteResetZoomSignal}
+                                    centerSunSignal={nonSatelliteCenterSignal}
+                                />
+                            ) : (
+                                <SolarSystemCanvas
+                                    scene={nonSatelliteScene}
+                                    selectedTargetKeys={nonSatelliteTargetKey ? [nonSatelliteTargetKey] : []}
+                                    fitAllSignal={nonSatelliteFitAllSignal}
+                                    focusTargetSignal={focusTargetSignal}
+                                    focusTargetKey={nonSatelliteTargetKey}
+                                    zoomInSignal={nonSatelliteZoomInSignal}
+                                    zoomOutSignal={nonSatelliteZoomOutSignal}
+                                    resetZoomSignal={nonSatelliteResetZoomSignal}
+                                    centerSunSignal={nonSatelliteCenterSignal}
+                                    instantFocus={true}
+                                    initialViewport={celestialState?.mapSettings?.solarSystemViewport || null}
+                                    enableMapDragging={targetViewEnableDragging}
+                                    enableMapZooming={targetViewEnableZooming}
+                                />
+                            )}
+                            {celestialState?.tracksLoading ? (
+                                <Box
+                                    sx={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexDirection: 'column',
+                                        gap: 1.25,
+                                        bgcolor: (theme) => theme.palette.mode === 'dark'
+                                            ? 'rgba(8, 10, 14, 0.72)'
+                                            : 'rgba(248, 250, 255, 0.78)',
+                                        pointerEvents: 'none',
+                                    }}
+                                >
+                                    <CircularProgress size={34} />
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                        {targetViewMode === TARGET_VIEW_MODE_PLANETARIUM
+                                            ? 'Loading planetarium vectors...'
+                                            : 'Loading target scene...'}
                                     </Typography>
                                 </Box>
-                            ) : (
-                                targetViewMode === TARGET_VIEW_MODE_PLANETARIUM ? (
-                                    <PlanetariumCanvas
-                                        scene={nonSatelliteScene}
-                                        selectedTargetKeys={nonSatelliteTargetKey ? [nonSatelliteTargetKey] : []}
-                                        focusTargetKey={nonSatelliteTargetKey}
-                                        enableMapDragging={targetViewEnableDragging}
-                                        enableMapZooming={targetViewEnableZooming}
-                                    />
-                                ) : (
-                                    <SolarSystemCanvas
-                                        scene={nonSatelliteScene}
-                                        selectedTargetKeys={nonSatelliteTargetKey ? [nonSatelliteTargetKey] : []}
-                                        focusTargetSignal={focusTargetSignal}
-                                        focusTargetKey={nonSatelliteTargetKey}
-                                        instantFocus={true}
-                                        initialViewport={celestialState?.mapSettings?.solarSystemViewport || null}
-                                        enableMapDragging={targetViewEnableDragging}
-                                        enableMapZooming={targetViewEnableZooming}
-                                    />
-                                )
-                            )}
+                            ) : null}
                         </Box>
                     )}
                 </Box>

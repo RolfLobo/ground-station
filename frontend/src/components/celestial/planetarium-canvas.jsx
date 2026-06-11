@@ -355,11 +355,21 @@ function PlanetariumCanvas({
     focusTargetKey = '',
     enableMapDragging = true,
     enableMapZooming = true,
+    fitAllSignal = 0,
+    zoomInSignal = 0,
+    zoomOutSignal = 0,
+    resetZoomSignal = 0,
+    centerSunSignal = 0,
 }) {
     const theme = useTheme();
     const containerRef = useRef(null);
     const canvasRef = useRef(null);
     const dragRef = useRef(null);
+    const lastFitAllSignalRef = useRef(fitAllSignal);
+    const lastZoomInSignalRef = useRef(zoomInSignal);
+    const lastZoomOutSignalRef = useRef(zoomOutSignal);
+    const lastResetZoomSignalRef = useRef(resetZoomSignal);
+    const lastCenterSunSignalRef = useRef(centerSunSignal);
     const [size, setSize] = useState({ width: 0, height: 0 });
     const [starCatalog, setStarCatalog] = useState([]);
     const [starCatalogLoadFailed, setStarCatalogLoadFailed] = useState(false);
@@ -438,6 +448,16 @@ function PlanetariumCanvas({
         }));
     }, [focusedKey, skyObjects]);
 
+    useEffect(() => {
+        if (fitAllSignal === lastFitAllSignalRef.current) return;
+        lastFitAllSignalRef.current = fitAllSignal;
+        setView({
+            centerAz: 180,
+            centerEl: 35,
+            fov: DEFAULT_FOV_DEG,
+        });
+    }, [fitAllSignal]);
+
     const handlePointerDown = useCallback((event) => {
         if (!enableMapDragging) return;
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -479,6 +499,50 @@ function PlanetariumCanvas({
             fov: clamp(current.fov * factor, MIN_FOV_DEG, MAX_FOV_DEG),
         }));
     }, [enableMapZooming]);
+
+    useEffect(() => {
+        if (zoomInSignal === lastZoomInSignalRef.current) return;
+        lastZoomInSignalRef.current = zoomInSignal;
+        setView((current) => ({
+            ...current,
+            fov: clamp(current.fov * 0.86, MIN_FOV_DEG, MAX_FOV_DEG),
+        }));
+    }, [zoomInSignal]);
+
+    useEffect(() => {
+        if (zoomOutSignal === lastZoomOutSignalRef.current) return;
+        lastZoomOutSignalRef.current = zoomOutSignal;
+        setView((current) => ({
+            ...current,
+            fov: clamp(current.fov * 1.16, MIN_FOV_DEG, MAX_FOV_DEG),
+        }));
+    }, [zoomOutSignal]);
+
+    useEffect(() => {
+        if (resetZoomSignal === lastResetZoomSignalRef.current) return;
+        lastResetZoomSignalRef.current = resetZoomSignal;
+        setView((current) => ({
+            ...current,
+            fov: DEFAULT_FOV_DEG,
+        }));
+    }, [resetZoomSignal]);
+
+    useEffect(() => {
+        if (centerSunSignal === lastCenterSunSignalRef.current) return;
+        lastCenterSunSignalRef.current = centerSunSignal;
+
+        // Prefer selected/focused target; otherwise center on the Sun fallback target.
+        const centerCandidate = (
+            skyObjects.find((object) => object.key === focusedKey)
+            || skyObjects.find((object) => String(object.name || '').trim().toLowerCase() === 'sun')
+        );
+        if (!centerCandidate) return;
+        setView((current) => ({
+            ...current,
+            centerAz: centerCandidate.az,
+            centerEl: clamp(centerCandidate.el, -45, 85),
+        }));
+    }, [centerSunSignal, focusedKey, skyObjects]);
 
     useEffect(() => {
         const canvas = canvasRef.current;

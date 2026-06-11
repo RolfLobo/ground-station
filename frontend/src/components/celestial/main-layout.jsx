@@ -455,6 +455,8 @@ const CelestialMainLayout = () => {
     const solarLoading = Boolean(celestialState?.solarLoading);
     const isSolarInitialLoad = solarLoading && !hasSolarScene;
     const isSolarRefreshing = solarLoading && hasSolarScene;
+    const isPlanetariumInitialLoad = Boolean(celestialState?.tracksLoading) && viewMode === VIEW_MODE_PLANETARIUM && trackedCount === 0;
+    const isPlanetariumRefreshing = Boolean(celestialState?.tracksLoading) && viewMode === VIEW_MODE_PLANETARIUM && trackedCount > 0;
     const selectedInfoTargetKey = React.useMemo(() => {
         const focusedKey = String(focusTargetKey || '').trim();
         if (focusedKey) {
@@ -608,7 +610,7 @@ const CelestialMainLayout = () => {
                                 />
                             )}
 
-                            {isSolarInitialLoad && viewMode === VIEW_MODE_SOLAR_SYSTEM ? (
+                            {(isSolarInitialLoad && viewMode === VIEW_MODE_SOLAR_SYSTEM) || isPlanetariumInitialLoad ? (
                                 <Box
                                     sx={{
                                         position: 'absolute',
@@ -625,12 +627,14 @@ const CelestialMainLayout = () => {
                                 >
                                     <CircularProgress size={34} />
                                     <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                                        Loading solar system vectors...
+                                        {viewMode === VIEW_MODE_PLANETARIUM
+                                            ? 'Loading planetarium vectors...'
+                                            : 'Loading solar system vectors...'}
                                     </Typography>
                                 </Box>
                             ) : null}
 
-                            {isSolarRefreshing ? (
+                            {isSolarRefreshing || isPlanetariumRefreshing ? (
                                 <Box
                                     sx={{
                                         position: 'absolute',
