@@ -28,6 +28,8 @@ import {
 } from './monitored-slice.jsx';
 import { toRowSelectionModel, toSelectedIds } from '../../utils/datagrid-selection.js';
 import { useUserTimeSettings } from '../../hooks/useUserTimeSettings.jsx';
+import TargetNumberIcon from '../common/target-number-icon.jsx';
+import { buildTargetKeyFromCelestialRow } from '../target/celestial-target-utils.js';
 
 const AU_IN_KM = 149597870.7;
 const SECONDS_PER_DAY = 86400;
@@ -162,16 +164,6 @@ const computeProjectionSpan = (orbitSampling) => {
     return `${past}h / ${future}h @ ${step}m`;
 };
 
-const buildTargetKey = (entry) => {
-    const type = String(entry?.targetType || entry?.target_type || 'mission').toLowerCase();
-    if (type === 'body') {
-        const bodyId = String(entry?.bodyId || entry?.body_id || entry?.command || '').toLowerCase();
-        return bodyId ? `body:${bodyId}` : '';
-    }
-    const command = String(entry?.command || '').trim();
-    return command ? `mission:${command}` : '';
-};
-
 const getVisibilityState = (visible, elevationDeg) => {
     if (typeof visible === 'boolean') {
         return visible ? 'visible' : 'below';
@@ -295,6 +287,7 @@ const MonitoredCelestialGridIsland = ({
     loading = false,
     onRowDoubleClick = null,
     onTargetSelected = null,
+    targetNumberByTargetKey = {},
 }) => {
     const dispatch = useDispatch();
     const { timezone, locale } = useUserTimeSettings();
@@ -318,16 +311,7 @@ const MonitoredCelestialGridIsland = ({
     const trackByTargetKey = useMemo(() => {
         const entries = Array.isArray(tracks) ? tracks : [];
         return entries.reduce((acc, track) => {
-            const key = String(track?.target_key || '').trim()
-                || (() => {
-                    const type = String(track?.target_type || 'mission').toLowerCase();
-                    if (type === 'body') {
-                        const bodyId = String(track?.body_id || track?.command || '').toLowerCase();
-                        return bodyId ? `body:${bodyId}` : '';
-                    }
-                    const command = String(track?.command || '').trim();
-                    return command ? `mission:${command}` : '';
-                })();
+            const key = buildTargetKeyFromCelestialRow(track);
             if (key) acc[key] = track;
             return acc;
         }, {});
@@ -336,7 +320,7 @@ const MonitoredCelestialGridIsland = ({
     const enrichedRows = useMemo(
         () =>
             (rows || []).map((row) => {
-                const targetKey = buildTargetKey(row);
+                const targetKey = buildTargetKeyFromCelestialRow(row);
                 const track = trackByTargetKey[targetKey] || {};
                 const targetType = String(row.targetType || row.target_type || 'mission').toLowerCase();
                 const distanceAu = magnitude3(track.position_xyz_au);
@@ -400,6 +384,19 @@ const MonitoredCelestialGridIsland = ({
                             gap: 0.75,
                         }}
                     >
+                        {(() => {
+                            const targetKey = String(params.row?.targetKey || '').trim();
+                            const targetNumber = Number(targetNumberByTargetKey?.[targetKey]);
+                            if (!Number.isFinite(targetNumber) || targetNumber <= 0) return null;
+                            return (
+                                <TargetNumberIcon
+                                    targetNumber={targetNumber}
+                                    prefix="T"
+                                    size={16}
+                                    sx={{ flexShrink: 0 }}
+                                />
+                            );
+                        })()}
                         {(() => {
                             const value = String(params.row?.color || '').trim();
                             const valid = /^#[0-9A-Fa-f]{6}$/.test(value);
@@ -514,7 +511,7 @@ const MonitoredCelestialGridIsland = ({
                 valueGetter: (value) => formatLastRefresh(value, timezone, locale),
             },
         ],
-        [timezone, locale],
+        [timezone, locale, targetNumberByTargetKey],
     );
 
     return (

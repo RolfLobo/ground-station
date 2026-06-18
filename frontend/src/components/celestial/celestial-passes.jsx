@@ -40,6 +40,7 @@ import { getClassNamesBasedOnGridEditing, islandTitleBarCompactSx, TitleBar } fr
 import { useUserTimeSettings } from '../../hooks/useUserTimeSettings.jsx';
 import { toRowSelectionModel, toSelectedIds } from '../../utils/datagrid-selection.js';
 import ProgressFormatter from '../earthview/progressbar-widget.jsx';
+import TargetNumberIcon from '../common/target-number-icon.jsx';
 
 const getPassBackgroundColor = (color, theme, coefficient) => ({
     backgroundColor: darken(color, coefficient),
@@ -176,9 +177,12 @@ const formatAngle = (value) => {
     return `${numeric.toFixed(2)}°`;
 };
 
-const PassStatusCell = ({ status }) => {
+const PassStatusCell = ({ status, targetNumber = null }) => {
+    const hasTargetNumber = Number.isFinite(Number(targetNumber)) && Number(targetNumber) > 0;
+    const markerSize = 16;
+    let statusChip = null;
     if (status === 'live') {
-        return (
+        statusChip = (
             <Chip
                 icon={<RadioButtonCheckedIcon sx={{ fontSize: '0.85rem' }} />}
                 size="small"
@@ -188,9 +192,8 @@ const PassStatusCell = ({ status }) => {
                 sx={{ fontWeight: 700, minWidth: 85 }}
             />
         );
-    }
-    if (status === 'passed') {
-        return (
+    } else if (status === 'passed') {
+        statusChip = (
             <Chip
                 icon={<DoneAllIcon sx={{ fontSize: '0.85rem' }} />}
                 size="small"
@@ -200,16 +203,33 @@ const PassStatusCell = ({ status }) => {
                 sx={{ fontWeight: 700, minWidth: 85 }}
             />
         );
+    } else {
+        statusChip = (
+            <Chip
+                icon={<AccessTimeFilledIcon sx={{ fontSize: '0.85rem' }} />}
+                size="small"
+                color="warning"
+                label="Upcoming"
+                variant="outlined"
+                sx={{ fontWeight: 700, minWidth: 85 }}
+            />
+        );
     }
+
     return (
-        <Chip
-            icon={<AccessTimeFilledIcon sx={{ fontSize: '0.85rem' }} />}
-            size="small"
-            color="warning"
-            label="Upcoming"
-            variant="outlined"
-            sx={{ fontWeight: 700, minWidth: 85 }}
-        />
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 0.6, width: '100%' }}>
+            {statusChip}
+            <Box sx={{ minWidth: markerSize + 6, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
+                {hasTargetNumber ? (
+                    <TargetNumberIcon
+                        targetNumber={targetNumber}
+                        prefix="T"
+                        size={markerSize}
+                        sx={{ filter: 'brightness(1.12)' }}
+                    />
+                ) : null}
+            </Box>
+        </Box>
     );
 };
 
@@ -316,6 +336,7 @@ const CelestialPasses = ({
     passes = [],
     loading = false,
     gridEditable = false,
+    targetNumberByTargetKey = {},
     onTargetSelected = null,
     onRefresh = null,
     refreshDisabled = false,
@@ -405,23 +426,16 @@ const CelestialPasses = ({
         {
             field: 'status',
             headerName: 'Status',
-            minWidth: 140,
+            minWidth: 165,
             align: 'center',
             headerAlign: 'center',
             cellClassName: 'passes-cell-status',
             sortComparator: (v1, v2) => getStatusPriority(v1) - getStatusPriority(v2),
             renderCell: (params) => (
-                <Box
-                    sx={{
-                        width: '100%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}
-                >
-                    <PassStatusCell status={params.value} />
-                </Box>
+                <PassStatusCell
+                    status={params.value}
+                    targetNumber={targetNumberByTargetKey?.[String(params.row?.targetKey || '').trim()] ?? null}
+                />
             ),
         },
         {
@@ -511,7 +525,7 @@ const CelestialPasses = ({
         { field: 'stale', headerName: 'Stale', minWidth: 80 },
         { field: 'source', headerName: 'Source', minWidth: 130 },
         { field: 'targetId', headerName: 'Target ID', minWidth: 180 },
-    ], [nowMs, timezone, locale]);
+    ], [nowMs, timezone, locale, targetNumberByTargetKey]);
 
     const handleQuickPreset = useCallback((preset) => {
         setQuickFilterPreset(preset);

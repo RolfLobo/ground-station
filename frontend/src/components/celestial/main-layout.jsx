@@ -39,6 +39,10 @@ import CelestialPassTimeline from './celestial-pass-timeline.jsx';
 import CelestialInfoIsland from './celestial-info-island.jsx';
 import SolarSystemLayoutOptionsDialog from './solar-system-layout-options-dialog.jsx';
 import SettingsIcon from '@mui/icons-material/Settings';
+import {
+    buildTargetKeyFromCelestialRow,
+    buildTargetSlotNumberByTargetKey,
+} from '../target/celestial-target-utils.js';
 
 export const gridLayoutStoreName = 'celestial-layouts';
 const LAYOUT_SCHEMA_VERSION = 6;
@@ -102,18 +106,6 @@ const exitFullscreen = () => {
     if (document.msExitFullscreen) {
         document.msExitFullscreen();
     }
-};
-const buildTargetKey = (row) => {
-    const explicitKey = String(row?.targetKey || row?.target_key || '').trim();
-    if (explicitKey) return explicitKey;
-
-    const type = String(row?.targetType || row?.target_type || 'mission').toLowerCase();
-    if (type === 'body') {
-        const bodyId = String(row?.bodyId || row?.body_id || row?.command || '').trim().toLowerCase();
-        return bodyId ? `body:${bodyId}` : '';
-    }
-    const command = String(row?.command || '').trim();
-    return command ? `mission:${command}` : '';
 };
 function loadLayoutsFromLocalStorage() {
     try {
@@ -282,6 +274,7 @@ const CelestialMainLayout = () => {
     const solarSystemDisplayOptions = useSelector((state) => state.celestialDisplay?.solarSystem);
     const planetariumDisplayOptions = useSelector((state) => state.celestialDisplay?.planetarium);
     const monitoredState = useSelector((state) => state.celestialMonitored);
+    const trackerInstances = useSelector((state) => state.trackerInstances?.instances || []);
     const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
 
     const [layouts, setLayouts] = useState(() => {
@@ -471,11 +464,15 @@ const CelestialMainLayout = () => {
         const selectedRow = rows.find((row) => row.id === selectedId);
         if (!selectedRow) return '';
 
-        return buildTargetKey(selectedRow);
+        return buildTargetKeyFromCelestialRow(selectedRow);
     }, [focusTargetKey, monitoredState?.monitored, monitoredState?.selectedIds]);
     const selectedTargetKeys = React.useMemo(
         () => (selectedInfoTargetKey ? [selectedInfoTargetKey] : []),
         [selectedInfoTargetKey],
+    );
+    const targetNumberByTargetKey = React.useMemo(
+        () => buildTargetSlotNumberByTargetKey(trackerInstances),
+        [trackerInstances],
     );
     const tracksProgress = celestialState?.tracksProgress || null;
     const tracksProgressText = React.useMemo(() => {
@@ -604,6 +601,7 @@ const CelestialMainLayout = () => {
                                 <SolarSystemCanvas
                                     scene={combinedScene}
                                     selectedTargetKeys={selectedTargetKeys}
+                                    targetNumberByTargetKey={targetNumberByTargetKey}
                                     fitAllSignal={fitAllSignal}
                                     focusTargetSignal={focusTargetSignal}
                                     focusTargetKey={focusTargetKey}
@@ -707,8 +705,9 @@ const CelestialMainLayout = () => {
                     <MonitoredCelestialGridIsland
                         rows={monitoredState.monitored || []}
                         loading={Boolean(monitoredState.loading)}
+                        targetNumberByTargetKey={targetNumberByTargetKey}
                         onTargetSelected={(row) => {
-                            const key = buildTargetKey(row);
+                            const key = buildTargetKeyFromCelestialRow(row);
                             if (!key) return;
                             setFocusTargetKey(key);
                             setFocusTargetSignal((value) => value + 1);
@@ -744,6 +743,7 @@ const CelestialMainLayout = () => {
                     tracks={combinedScene?.celestial || []}
                     loading={Boolean(celestialState.tracksLoading)}
                     gridEditable={isEditing}
+                    targetNumberByTargetKey={targetNumberByTargetKey}
                     onTargetSelected={(targetKey) => {
                         if (!targetKey) return;
                         setFocusTargetKey(targetKey);

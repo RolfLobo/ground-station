@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { useUserTimeSettings } from '../../hooks/useUserTimeSettings.jsx';
+import { buildTargetKeyFromCelestialRow } from '../target/celestial-target-utils.js';
 
 const PLANET_COLORS = {
     mercury: '#c2b280',
@@ -279,15 +280,7 @@ const computeRelativeMedianRadiusAu = (childSamples, parentSamples) => {
 };
 
 const resolveTargetKey = (body) => {
-    const explicit = String(body?.target_key || '').trim();
-    if (explicit) return explicit;
-    const type = String(body?.target_type || 'mission').toLowerCase();
-    if (type === 'body') {
-        const bodyId = String(body?.body_id || body?.command || '').toLowerCase();
-        return bodyId ? `body:${bodyId}` : '';
-    }
-    const command = String(body?.command || '').trim();
-    return command ? `mission:${command}` : '';
+    return buildTargetKeyFromCelestialRow(body);
 };
 
 const resolvePastSegmentEndIndex = (samples, sampleTimesUtc, sceneTimestampUtc) => {
@@ -523,6 +516,7 @@ const projectToViewportEdge = ({
 const SolarSystemCanvas = ({
     scene,
     selectedTargetKeys = [],
+    targetNumberByTargetKey = {},
     fitAllSignal = 0,
     focusTargetSignal = 0,
     focusTargetKey = '',
@@ -1611,8 +1605,13 @@ const SolarSystemCanvas = ({
                     const labelAnchorX = (isSingleTrackedMode && isSunLabelTarget(body))
                         ? sx + SUN_LABEL_SINGLE_MODE_OFFSET_PX
                         : sx;
+                    const targetSlotNumber = Number(targetNumberByTargetKey?.[targetKey]);
+                    const targetSlotLabel = Number.isFinite(targetSlotNumber) && targetSlotNumber > 0
+                        ? `T${targetSlotNumber} `
+                        : '';
+                    const bodyLabel = `${targetSlotLabel}${body.name || body.command || 'object'}`;
                     drawLabelWithAutoOffset(
-                        body.name || body.command || 'object',
+                        bodyLabel,
                         labelAnchorX,
                         sy,
                         labelColor,
@@ -1795,6 +1794,7 @@ const SolarSystemCanvas = ({
         hasTrackedRows,
         moonOrbitRings,
         selectedTargetKeySet,
+        targetNumberByTargetKey,
         hasTrackedSelection,
         isSingleTrackedMode,
         theme.palette.background.default,

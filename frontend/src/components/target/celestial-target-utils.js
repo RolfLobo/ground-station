@@ -1,4 +1,5 @@
 const MAX_TARGET_PASS_HOURS = 24;
+const TARGET_SLOT_ID_PATTERN = /^target-(\d+)$/;
 
 export const normalizeTargetType = (trackingState = {}) => {
     const explicitType = String(trackingState?.target_type || '').trim().toLowerCase();
@@ -13,6 +14,13 @@ export const normalizeTargetType = (trackingState = {}) => {
 const normalizeText = (value) => String(value ?? '').trim();
 
 const normalizeBodyId = (value) => normalizeText(value).toLowerCase();
+
+export const parseTargetSlotNumber = (trackerId = '') => {
+    const match = String(trackerId || '').trim().match(TARGET_SLOT_ID_PATTERN);
+    if (!match) return null;
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
 
 const formatBodyNameFromId = (bodyId) => {
     const normalizedBodyId = normalizeBodyId(bodyId);
@@ -32,6 +40,34 @@ const buildTargetKey = ({ targetType, command, bodyId }) => {
         return bodyId ? `body:${bodyId}` : '';
     }
     return '';
+};
+
+export const buildTargetKeyFromCelestialRow = (row = {}) => {
+    const explicitKey = normalizeText(row?.target_key || row?.targetKey);
+    if (explicitKey) {
+        return explicitKey;
+    }
+
+    const explicitType = String(row?.target_type || row?.targetType || '').trim().toLowerCase();
+    if (explicitType === 'body') {
+        const bodyId = normalizeBodyId(row?.body_id || row?.bodyId || row?.command);
+        return bodyId ? `body:${bodyId}` : '';
+    }
+    if (explicitType === 'mission') {
+        const command = normalizeText(row?.command);
+        return command ? `mission:${command}` : '';
+    }
+    if (explicitType === 'satellite') {
+        return '';
+    }
+
+    // Fallback for partially populated rows where target_type is missing.
+    const fallbackBodyId = normalizeBodyId(row?.body_id || row?.bodyId);
+    if (fallbackBodyId) {
+        return `body:${fallbackBodyId}`;
+    }
+    const fallbackCommand = normalizeText(row?.command);
+    return fallbackCommand ? `mission:${fallbackCommand}` : '';
 };
 
 const isIdentifierOnlyName = ({ name, targetType, command, bodyId }) => {
@@ -131,15 +167,41 @@ export const clampTargetPassHours = (value) => {
 
 export const buildTargetKeyFromTrackingState = (trackingState = {}) => {
     const targetType = normalizeTargetType(trackingState);
-    if (targetType === 'mission') {
-        const command = String(trackingState?.command || '').trim();
-        return command ? `mission:${command}` : '';
-    }
-    if (targetType === 'body') {
-        const bodyId = String(trackingState?.body_id || '').trim().toLowerCase();
-        return bodyId ? `body:${bodyId}` : '';
+    if (targetType === 'mission' || targetType === 'body') {
+        return buildTargetKeyFromCelestialRow({
+            target_type: targetType,
+            command: trackingState?.command,
+            body_id: trackingState?.body_id,
+            target_key: trackingState?.target_key,
+            targetKey: trackingState?.targetKey,
+        });
     }
     return '';
+};
+
+export const buildTargetSlotNumberByTargetKey = (trackerInstances = []) => {
+    const mapping = {};
+    const instances = Array.isArray(trackerInstances) ? trackerInstances : [];
+
+    // One target can be temporarily attached to multiple slots (e.g. race during retarget).
+    // Use the lowest slot number to keep the UI deterministic.
+    instances.forEach((instance) => {
+        const slotNumber = parseTargetSlotNumber(instance?.tracker_id);
+        if (slotNumber == null) {
+            return;
+        }
+
+        const targetKey = buildTargetKeyFromTrackingState(instance?.tracking_state || {});
+        if (!targetKey) {
+            return;
+        }
+
+        if (mapping[targetKey] == null || slotNumber < mapping[targetKey]) {
+            mapping[targetKey] = slotNumber;
+        }
+    });
+
+    return mapping;
 };
 
 export const buildTargetCelestialPayload = ({
