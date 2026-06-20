@@ -59,6 +59,37 @@ def _build_label(index: int, attrs: Dict[str, str]) -> str:
     return f"{product} #{index}"
 
 
+def _is_native_uhd_device(attrs: Dict[str, str]) -> bool:
+    """
+    Keep only native UHD-discoverable devices.
+
+    uhd.find("") can include Soapy-backed radios via UHDSoapy bridges. Those are
+    covered by the Soapy SDR flows and are not stable targets for MultiUSRP probing.
+    """
+    raw_type = str(attrs.get("type", "")).strip().lower()
+    if raw_type == "soapy":
+        return False
+
+    # Defensive guard if type is absent but remote bridge keys are present.
+    if "remote" in attrs or "remote:driver" in attrs:
+        return False
+
+    return True
+
+
+def _device_dedupe_key(attrs: Dict[str, str]) -> str:
+    return "|".join(
+        [
+            str(attrs.get("type", "")).strip().lower(),
+            str(attrs.get("serial", "")).strip().lower(),
+            str(attrs.get("addr", "")).strip().lower(),
+            str(attrs.get("resource", "")).strip().lower(),
+            str(attrs.get("name", "")).strip().lower(),
+            str(attrs.get("product", "")).strip().lower(),
+        ]
+    )
+
+
 def probe_available_uhd_devices() -> str:
     """
     List and return information about all discoverable local UHD/USRP devices.
@@ -99,12 +130,25 @@ def probe_available_uhd_devices() -> str:
     try:
         discovered_devices = uhd.find("")
         log_messages.append(f"Found {len(discovered_devices)} UHD/USRP device(s)")
+        seen_keys = set()
+        skipped_soapy = 0
+        skipped_duplicates = 0
 
         for index, discovered in enumerate(discovered_devices):
             raw_args = (
                 discovered.to_string() if hasattr(discovered, "to_string") else str(discovered)
             )
             attrs = _parse_device_args_string(raw_args)
+            if not _is_native_uhd_device(attrs):
+                skipped_soapy += 1
+                continue
+
+            dedupe_key = _device_dedupe_key(attrs)
+            if dedupe_key in seen_keys:
+                skipped_duplicates += 1
+                continue
+            seen_keys.add(dedupe_key)
+
             serial = str(attrs.get("serial", "")).strip()
 
             entry: Dict[str, Any] = {
@@ -150,6 +194,15 @@ def probe_available_uhd_devices() -> str:
 
             log_messages.append(f"Found UHD/USRP device: {entry['label']}")
             devices.append(entry)
+
+        if skipped_soapy > 0:
+            log_messages.append(
+                f"INFO: Skipped {skipped_soapy} Soapy-backed device(s) from UHD enumeration"
+            )
+        if skipped_duplicates > 0:
+            log_messages.append(
+                f"INFO: Skipped {skipped_duplicates} duplicate UHD discovery row(s)"
+            )
 
         success = True
 

@@ -666,8 +666,6 @@ export default function SDRsPage() {
             // Probe local Soapy devices only when the user explicitly selects the local Soapy type.
             if (newType === 'soapysdrlocal') {
                 dispatch(fetchLocalSoapySDRDevices({ socket }));
-            } else if (newType === 'uhd') {
-                dispatch(fetchLocalUhdDevices({ socket }));
             }
         } else {
             // Normal field update
