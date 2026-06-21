@@ -201,7 +201,7 @@ export default function RigTable() {
     const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
     return (
-        <Paper elevation={3} sx={{padding: 2, marginTop: 0, borderRadius: 0}}>
+        <Paper elevation={3} sx={{ px: 2, pb: 2, pt: 1, marginTop: 0, borderRadius: 0 }}>
             <Box component="form">
                 <Box sx={{width: '100%'}}>
                     <DataGrid
@@ -230,7 +230,7 @@ export default function RigTable() {
                         }}
                         sx={{
                             border: 0,
-                            marginTop: 2,
+                            marginTop: 1,
                             [`& .${gridClasses.cell}:focus, & .${gridClasses.cell}:focus-within`]: {
                                 outline: 'none',
                             },
