@@ -22,6 +22,39 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
 
+const SDR_TYPE_GROUPS = [
+    {
+        key: 'rtlsdr',
+        label: 'RTL-SDR',
+        matches: (type) => type.startsWith('rtlsdr'),
+    },
+    {
+        key: 'airspy',
+        label: 'Airspy',
+        matches: (type) => type === 'airspy' || type === 'airspyhf',
+    },
+    {
+        key: 'uhd',
+        label: 'UHD',
+        matches: (type) => type === 'uhd',
+    },
+    {
+        key: 'soapysdrlocal',
+        label: 'SoapySDR (Local)',
+        matches: (type) => type === 'soapysdrlocal',
+    },
+    {
+        key: 'soapysdrremote',
+        label: 'SoapySDR (Remote)',
+        matches: (type) => type === 'soapysdrremote',
+    },
+    {
+        key: 'sigmfplayback',
+        label: 'SigMF Playback',
+        matches: (type) => type === 'sigmfplayback',
+    },
+];
+
 const SdrAccordion = ({
                           expanded,
                           onAccordionChange,
@@ -62,6 +95,30 @@ const SdrAccordion = ({
                           startStreamValidationErrors,
 }) => {
     const { t } = useTranslation('waterfall');
+    const sdrOptionsByGroup = React.useMemo(() => {
+        const typedGroups = SDR_TYPE_GROUPS.map((group) => ({
+            ...group,
+            items: [],
+        }));
+        const otherGroup = {
+            key: 'other',
+            label: t('sdr.other_sdrs'),
+            items: [],
+        };
+
+        sdrs.forEach((sdr) => {
+            const normalizedType = String(sdr?.type || '').trim().toLowerCase();
+            const matchingGroup = typedGroups.find((group) => group.matches(normalizedType));
+            if (matchingGroup) {
+                matchingGroup.items.push(sdr);
+                return;
+            }
+            otherGroup.items.push(sdr);
+        });
+
+        return [...typedGroups, otherGroup].filter((group) => group.items.length > 0);
+    }, [sdrs, t]);
+
     const selectedSdrRecord = React.useMemo(
         () => sdrs.find((sdr) => String(sdr?.id) === String(selectedSDRId)),
         [sdrs, selectedSDRId]
@@ -233,44 +290,16 @@ const SdrAccordion = ({
                                 <MenuItem value="none" disabled={isStreaming}>
                                     {t('sdr.no_sdr_selected')}
                                 </MenuItem>
-                                {/* Local SDRs */}
-                                {sdrs.filter(sdr => sdr.type.toLowerCase().includes('local')).length > 0 && (
-                                    <ListSubheader>{t('sdr.local_sdrs')}</ListSubheader>
-                                )}
-                                {sdrs
-                                    .filter(sdr => sdr.type.toLowerCase().includes('local'))
-                                    .map((sdr, index) => {
-                                        return <MenuItem value={sdr.id} key={`local-${index}`}>
-                                            {sdr.name} ({sdr.type})
-                                        </MenuItem>;
-                                    })
-                                }
-
-                                {/* Remote SDRs */}
-                                {sdrs.filter(sdr => sdr.type.toLowerCase().includes('remote')).length > 0 && (
-                                    <ListSubheader>{t('sdr.remote_sdrs')}</ListSubheader>
-                                )}
-                                {sdrs
-                                    .filter(sdr => sdr.type.toLowerCase().includes('remote'))
-                                    .map((sdr, index) => {
-                                        return <MenuItem value={sdr.id} key={`remote-${index}`}>
-                                            {sdr.name} ({sdr.type})
-                                        </MenuItem>;
-                                    })
-                                }
-
-                                {/* Other SDRs (neither local nor remote) */}
-                                {sdrs.filter(sdr => !sdr.type.toLowerCase().includes('local') && !sdr.type.toLowerCase().includes('remote')).length > 0 && (
-                                    <ListSubheader>{t('sdr.other_sdrs')}</ListSubheader>
-                                )}
-                                {sdrs
-                                    .filter(sdr => !sdr.type.toLowerCase().includes('local') && !sdr.type.toLowerCase().includes('remote'))
-                                    .map((sdr, index) => {
-                                        return <MenuItem value={sdr.id} key={`other-${index}`}>
-                                            {sdr.name} ({sdr.type})
-                                        </MenuItem>;
-                                    })
-                                }
+                                {sdrOptionsByGroup.map((group) => (
+                                    <React.Fragment key={`group-${group.key}`}>
+                                        <ListSubheader>{group.label}</ListSubheader>
+                                        {group.items.map((sdr) => (
+                                            <MenuItem value={sdr.id} key={sdr.id}>
+                                                {sdr.name} ({sdr.type})
+                                            </MenuItem>
+                                        ))}
+                                    </React.Fragment>
+                                ))}
                             </Select>
                         </FormControl>
 
