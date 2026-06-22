@@ -152,6 +152,9 @@
   "satellite_map": {
     "title": "Target tracking"
   },
+  "target_retarget_dialog": {
+    "title": "Retarget slot or create a new target"
+  },
   "satellite_transmitters": {
     "title": "Transmitters",
     "count": "Count",
