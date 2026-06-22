@@ -526,10 +526,28 @@ export default function SDRsPage() {
             }
         },
         {
-            field: 'host', headerName: t('sdr.host'), flex: 1, minWidth: 150
+            field: 'host',
+            headerName: t('sdr.host'),
+            flex: 1,
+            minWidth: 150,
+            renderCell: (params) => {
+                if (!params.row) {
+                    return "-";
+                }
+                return params.row.host || '-';
+            }
         },
         {
-            field: 'port', headerName: t('sdr.port'), flex: 1, minWidth: 100
+            field: 'port',
+            headerName: t('sdr.port'),
+            flex: 1,
+            minWidth: 100,
+            renderCell: (params) => {
+                if (!params.row) {
+                    return "-";
+                }
+                return params.row.port || '-';
+            }
         },
         {
             field: 'frequency_min',
@@ -547,7 +565,16 @@ export default function SDRsPage() {
             field: 'driver', headerName: t('sdr.driver'), flex: 1, minWidth: 100
         },
         {
-            field: 'serial', headerName: t('sdr.serial'), flex: 1, minWidth: 150
+            field: 'serial',
+            headerName: t('sdr.serial'),
+            flex: 1,
+            minWidth: 150,
+            renderCell: (params) => {
+                if (!params.row) {
+                    return "-";
+                }
+                return params.row.serial || '-';
+            }
         },
         {
             field: 'row_actions',
@@ -936,6 +963,7 @@ export default function SDRsPage() {
         // If a valid SDR type is selected, add the corresponding fields
         if (selectedType && sdrTypeFields[selectedType]) {
             const config = sdrTypeFields[selectedType];
+            let renderedPortUnderServerSelect = false;
 
             if (rtlUsbTypes.has(selectedType) && !isEditing) {
                 if (loadingLocalRtlSDRs) {
@@ -1463,6 +1491,23 @@ export default function SDRsPage() {
                         </FormControl>
                     );
 
+                    // Keep the remote port directly under the server selector so endpoint fields stay grouped.
+                    fields.push(
+                        <TextField
+                            key="remote-port-under-server-select"
+                            name="port"
+                            label={t('sdr.port')}
+                            fullWidth
+                            size="small"
+                            type="number"
+                            onChange={handleChange}
+                            value={getFieldValue('port')}
+                            error={Boolean(validationErrors.port)}
+                            required
+                        />
+                    );
+                    renderedPortUnderServerSelect = true;
+
                     // If a server is selected, add a dropdown to select SDR devices from that server
                     if (formValues.host && !isEditing) {
                         const selectedServerInfo = getSelectedSoapyServerInfo();
@@ -1532,7 +1577,7 @@ export default function SDRsPage() {
             }
 
             // Port field - only show for types that don't exclude it
-            if (!config.excludeFields.includes('port')) {
+            if (!config.excludeFields.includes('port') && !renderedPortUnderServerSelect) {
                 fields.push(
                     <TextField
                         key="port"
@@ -1995,13 +2040,7 @@ export default function SDRsPage() {
                     <DataGrid
                         loading={loading}
                         rows={sdrs
-                            .filter(row => row.type !== 'sigmfplayback')
-                            .map(row => ({
-                                ...row,
-                                host: row.host || '-',
-                                port: row.port || '-',
-                                serial: row.serial || '-'
-                            }))}
+                            .filter(row => row.type !== 'sigmfplayback')}
                         columns={columns}
                         checkboxSelection
                         disableRowSelectionExcludeModel
