@@ -5,14 +5,27 @@
 import { test, expect } from '@playwright/test';
 
 async function ensureSourcesSubTabSelected(page) {
-  const sourcesTab = page.getByRole('tab', { name: /^sources$/i }).first();
-  if (await sourcesTab.count() === 0) {
+  const addButton = page.getByRole('button', { name: /^add$/i }).first();
+  if (await addButton.isVisible({ timeout: 3000 }).catch(() => false)) {
     return;
   }
+
+  // Target the inner orbital-data tab group (Sync Now / Sources), not the top satellites tabs.
+  const orbitalSourceTablist = page.getByRole('tablist').filter({
+    has: page.getByRole('tab', { name: /^sync now$/i }),
+  }).first();
+  await expect(orbitalSourceTablist).toBeVisible({ timeout: 15000 });
+
+  const sourcesTab = orbitalSourceTablist.getByRole('tab', { name: /^sources$/i });
+  await expect(sourcesTab).toBeVisible({ timeout: 15000 });
+
   const isSelected = await sourcesTab.getAttribute('aria-selected');
   if (isSelected !== 'true') {
     await sourcesTab.click();
+    await expect(sourcesTab).toHaveAttribute('aria-selected', 'true');
   }
+
+  await expect(addButton).toBeVisible({ timeout: 15000 });
 }
 
 test.describe('TLE Sources', () => {

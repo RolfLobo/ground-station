@@ -528,15 +528,18 @@ export default function SourcesTable() {
                 variant="scrollable"
                 scrollButtons
                 allowScrollButtonsMobile
+                data-testid="orbital-data-tabs"
                 aria-label={t('orbital_sources.tabs.aria', { defaultValue: 'orbital source tabs' })}
                 sx={getOrbitalSourcesTabsSx}
             >
                 <AntTab
                     value="sync_now"
+                    data-testid="orbital-data-tab-sync-now"
                     label={t('orbital_sources.tabs.sync_now', { defaultValue: 'Sync Now' })}
                 />
                 <AntTab
                     value="sources"
+                    data-testid="orbital-data-tab-sources"
                     label={t('orbital_sources.tabs.sources', { defaultValue: 'Sources' })}
                 />
             </AntTabs>
