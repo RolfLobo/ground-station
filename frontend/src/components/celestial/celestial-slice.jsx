@@ -28,19 +28,19 @@ export const CELESTIAL_PASSES_DEFAULT_COLUMN_VISIBILITY = {
     duration: true,
     eventStart: true,
     eventEnd: true,
-    startAzimuthDeg: false,
-    endAzimuthDeg: false,
-    peakAzimuthDeg: false,
+    startAzimuthDeg: true,
+    endAzimuthDeg: true,
+    peakAzimuthDeg: true,
     cacheStatus: true,
     stale: true,
-    source: false,
+    source: true,
 };
 export const CELESTIAL_PASSES_DEFAULT_PAGE_SIZE = 10;
 export const CELESTIAL_PASSES_DEFAULT_SORT_MODEL = [
     { field: 'status', sort: 'asc' },
     { field: 'eventStart', sort: 'asc' },
 ];
-export const CELESTIAL_PASSES_DEFAULTS_VERSION = 2;
+export const CELESTIAL_PASSES_DEFAULTS_VERSION = 3;
 
 export const fetchCelestialScene = createAsyncThunk(
     'celestial/fetchScene',
