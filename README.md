@@ -9,6 +9,19 @@ operators, satellite enthusiasts, and researchers, it brings orbit visualization
 SDR waterfall analysis, packet and telemetry decoding, scheduled observations, and hardware management into a
 single web interface.
 
+## Recent Releases (Last 10 Tags)
+
+* **v0.7.3 (2026-06-25):** Improved worker presentation timing for Android WebView, refined Satellites admin UI layout, and enhanced SDR table rendering/port behavior.
+* **v0.7.2 (2026-06-22):** Added native Airspy/Airspy HF+ support, grouped SDRs by type with inline edit actions, and updated SDR management docs/UI copy.
+* **v0.7.1 (2026-06-20):** Expanded celestial catalog defaults with major moons for Uranus, Neptune, and Pluto.
+* **v0.7.0 (2026-06-20):** Introduced UHD/USRP discovery integration, improved SoapySDR discovery/task monitoring, and cleaned up hardware management UX.
+* **v0.6.0 (2026-06-16):** Added SQLite concurrent-write retry handling, moved auth/session behavior to cookie-backed flows, and hardened setup/admin-recovery logic.
+* **v0.5.2 (2026-06-12):** Expanded planetarium/target map capabilities (interactive controls, fullscreen, pass handling), and refreshed docs/features descriptions.
+* **v0.5.1 (2026-06-09):** Added dynamic moon-phase visualization and improved tracker-state restoration/cleanup behavior.
+* **v0.5.0 (2026-06-09):** Delivered major earthview/location workflow updates, including location wizard improvements, callsign metadata, and target/map UX refinements.
+* **v0.4.13 (2026-05-30):** Fixed snapshot/SigMF playback path traversal risk and refactored default system satellite-group constants/selection logic.
+* **v0.4.12 (2026-05-27):** Dependency refresh tag (`idna`, `ws`); this tag points to the same commit as `v0.4.11`.
+
 ## Screenshots
 
 <div align="center">
