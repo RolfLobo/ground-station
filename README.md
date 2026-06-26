@@ -12,7 +12,7 @@ single web interface.
 ## Recent Releases (Last 10 Tags)
 
 * **v0.7.3 (2026-06-25):** Improved worker presentation timing for Android WebView, refined Satellites admin UI layout, and enhanced SDR table rendering/port behavior.
-* **v0.7.2 (2026-06-22):** Added native Airspy/Airspy HF+ support, grouped SDRs by type with inline edit actions, and updated SDR management docs/UI copy.
+* **v0.7.2 (2026-06-22):** Added native Airspy/Airspy HF+ support (**Airspy HF+ currently untested**), grouped SDRs by type with inline edit actions, and updated SDR management docs/UI copy.
 * **v0.7.1 (2026-06-20):** Expanded celestial catalog defaults with major moons for Uranus, Neptune, and Pluto.
 * **v0.7.0 (2026-06-20):** Introduced UHD/USRP discovery integration, improved SoapySDR discovery/task monitoring, and cleaned up hardware management UX.
 * **v0.6.0 (2026-06-16):** Added SQLite concurrent-write retry handling, moved auth/session behavior to cookie-backed flows, and hardened setup/admin-recovery logic.
@@ -428,7 +428,7 @@ flowchart TB
 Dedicated worker processes provide IQ acquisition, FFT processing, and demodulation support for multiple receiver families:
 
 *   **RTL-SDR** (USB or `rtl_tcp`) workers
-*   **Airspy / AirspyHF+** native worker support (`AirspyHF+` currently untested)
+*   **Airspy / Airspy HF+** native worker support (**Airspy HF+ currently untested**)
 *   **SoapySDR** devices locally or through SoapyRemote: RTL-SDR, Airspy, HackRF, HydraSDR, LimeSDR, PlutoSDR, UHD/USRP, and SDRplay (RSP series)
 *   **UHD/USRP** radios via a UHD worker
 *   **GNSS-SDR** integration for GNSS decoding workflows (requires `gnss-sdr` available in `PATH`)
