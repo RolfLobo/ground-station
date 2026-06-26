@@ -38,6 +38,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+    resetSatellitesTableSettings,
     setSatellitesTableColumnVisibility,
     setSatellitesTablePageSize,
 } from './earthview-slice.jsx';
@@ -59,6 +60,10 @@ const SatellitesTableSettingsDialog = ({ open, onClose }) => {
 
     const handleRowsPerPageChange = (event) => {
         dispatch(setSatellitesTablePageSize(event.target.value));
+    };
+
+    const handleResetValues = () => {
+        dispatch(resetSatellitesTableSettings());
     };
 
     const columns = [
@@ -150,6 +155,9 @@ const SatellitesTableSettingsDialog = ({ open, onClose }) => {
                 ))}
             </DialogContent>
             <DialogActions>
+                <Button onClick={handleResetValues} variant="outlined" color="warning">
+                    Reset Values
+                </Button>
                 <Button onClick={onClose} variant="contained">
                     {t('satellites_table_settings.close')}
                 </Button>

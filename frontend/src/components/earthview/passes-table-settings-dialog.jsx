@@ -38,6 +38,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+    resetPassesTableSettings,
     setPassesTableColumnVisibility,
     setPassesTablePageSize,
 } from './earthview-slice.jsx';
@@ -59,6 +60,10 @@ const PassesTableSettingsDialog = ({ open, onClose }) => {
 
     const handleRowsPerPageChange = (event) => {
         dispatch(setPassesTablePageSize(event.target.value));
+    };
+
+    const handleResetValues = () => {
+        dispatch(resetPassesTableSettings());
     };
 
     const columns = [
@@ -159,6 +164,9 @@ const PassesTableSettingsDialog = ({ open, onClose }) => {
                 ))}
             </DialogContent>
             <DialogActions>
+                <Button onClick={handleResetValues} variant="outlined" color="warning">
+                    Reset Values
+                </Button>
                 <Button onClick={onClose} variant="contained">
                     {t('passes_table_settings.close')}
                 </Button>

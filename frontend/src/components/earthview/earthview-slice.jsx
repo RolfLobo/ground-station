@@ -93,6 +93,53 @@ const resolveCompatibleTileLayerId = (tileLayerID, mapEngine) => {
     return normalizedTileLayerID;
 };
 
+export const EARTHVIEW_SATELLITES_DEFAULT_COLUMN_VISIBILITY = {
+    name: true,
+    alternative_name: false,
+    norad_id: true,
+    elevation: true,
+    visibility: true,
+    status: true,
+    transmitters: true,
+    countries: false,
+    decayed: false,
+    updated: true,
+    launched: false,
+    active_tx_count: false,
+};
+
+export const EARTHVIEW_PASSES_DEFAULT_COLUMN_VISIBILITY = {
+    status: true,
+    name: true,
+    alternative_name: false,
+    name_other: false,
+    peak_altitude: true,
+    elevation: true,
+    progress: true,
+    duration: true,
+    transmitter_links: true,
+    event_start: true,
+    event_end: true,
+    distance_at_start: true,
+    distance_at_end: true,
+    distance_at_peak: true,
+    is_geostationary: false,
+    is_geosynchronous: false,
+};
+
+export const EARTHVIEW_PASSES_DEFAULT_PAGE_SIZE = 5;
+export const EARTHVIEW_SATELLITES_DEFAULT_PAGE_SIZE = 50;
+export const EARTHVIEW_PASSES_DEFAULT_SORT_MODEL = [
+    {field: 'status', sort: 'asc'},
+    {field: 'event_start', sort: 'asc'},
+];
+export const EARTHVIEW_SATELLITES_DEFAULT_SORT_MODEL = [
+    {field: 'visibility', sort: 'desc'},
+    {field: 'elevation', sort: 'desc'},
+    {field: 'status', sort: 'asc'},
+    {field: 'name', sort: 'asc'},
+];
+
 
 export const getEarthViewMapSettings = createAsyncThunk(
     'earthViewGroups/getEarthViewMapSettings',
@@ -321,44 +368,14 @@ const earthViewSlice = createSlice({
         openPassesTableSettingsDialog: false,
         openSatellitesTableSettingsDialog: false,
         nextPassesHours: 4.0,
-        satellitesTableColumnVisibility: {
-            name: true,
-            alternative_name: false,
-            norad_id: true,
-            elevation: true,
-            visibility: true,
-            status: true,
-            transmitters: true,
-            countries: false,
-            decayed: false,
-            updated: true,
-            launched: false,
-            active_tx_count: false,
-        },
-        passesTableColumnVisibility: {
-            status: true,
-            name: true,
-            alternative_name: false,
-            name_other: false,
-            peak_altitude: true,
-            elevation: true,
-            progress: true,
-            duration: true,
-            transmitter_links: true,
-            event_start: true,
-            event_end: true,
-            distance_at_start: false,
-            distance_at_end: false,
-            distance_at_peak: false,
-            is_geostationary: false,
-            is_geosynchronous: false,
-        },
+        satellitesTableColumnVisibility: { ...EARTHVIEW_SATELLITES_DEFAULT_COLUMN_VISIBILITY },
+        passesTableColumnVisibility: { ...EARTHVIEW_PASSES_DEFAULT_COLUMN_VISIBILITY },
         recentSatelliteGroups: [],
         showGeostationarySatellites: true, // Default on - show geostationary satellites
-        passesTablePageSize: 5, // Default page size for passes table
-        satellitesTablePageSize: 50, // Default page size for satellites table
-        passesTableSortModel: [{field: 'status', sort: 'asc'}, {field: 'event_start', sort: 'asc'}], // Default sort for passes table
-        satellitesTableSortModel: [{field: 'visibility', sort: 'desc'}, {field: 'elevation', sort: 'desc'}, {field: 'status', sort: 'asc'}, {field: 'name', sort: 'asc'}], // Default sort for satellites table
+        passesTablePageSize: EARTHVIEW_PASSES_DEFAULT_PAGE_SIZE, // Default page size for passes table
+        satellitesTablePageSize: EARTHVIEW_SATELLITES_DEFAULT_PAGE_SIZE, // Default page size for satellites table
+        passesTableSortModel: [...EARTHVIEW_PASSES_DEFAULT_SORT_MODEL], // Default sort for passes table
+        satellitesTableSortModel: [...EARTHVIEW_SATELLITES_DEFAULT_SORT_MODEL], // Default sort for satellites table
     },
     reducers: {
         setShowGeostationarySatellites(state, action) {
@@ -514,6 +531,16 @@ const earthViewSlice = createSlice({
         },
         setPassesTableColumnVisibility(state, action) {
             state.passesTableColumnVisibility = action.payload;
+        },
+        resetSatellitesTableSettings(state) {
+            state.satellitesTableColumnVisibility = { ...EARTHVIEW_SATELLITES_DEFAULT_COLUMN_VISIBILITY };
+            state.satellitesTablePageSize = EARTHVIEW_SATELLITES_DEFAULT_PAGE_SIZE;
+            state.satellitesTableSortModel = [...EARTHVIEW_SATELLITES_DEFAULT_SORT_MODEL];
+        },
+        resetPassesTableSettings(state) {
+            state.passesTableColumnVisibility = { ...EARTHVIEW_PASSES_DEFAULT_COLUMN_VISIBILITY };
+            state.passesTablePageSize = EARTHVIEW_PASSES_DEFAULT_PAGE_SIZE;
+            state.passesTableSortModel = [...EARTHVIEW_PASSES_DEFAULT_SORT_MODEL];
         },
         setRecentSatelliteGroups(state, action) {
             state.recentSatelliteGroups = action.payload;
@@ -703,6 +730,8 @@ export const {
     setLoadingSatellites,
     setSatellitesTableColumnVisibility,
     setPassesTableColumnVisibility,
+    resetSatellitesTableSettings,
+    resetPassesTableSettings,
     setRecentSatelliteGroups,
     addRecentSatelliteGroup,
 } = earthViewSlice.actions;
