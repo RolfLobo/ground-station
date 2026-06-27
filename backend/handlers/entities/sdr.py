@@ -162,6 +162,7 @@ async def sdr_command_routing(
                         "rtlsdrusbv3",
                         "rtlsdrtcpv4",
                         "rtlsdrusbv4",
+                        "sigmfplayback",
                     ]
                     else 0
                 )

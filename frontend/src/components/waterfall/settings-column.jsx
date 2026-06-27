@@ -103,6 +103,8 @@ import { useTranslation } from 'react-i18next';
 import { selectRunningRigTransmitters } from "../target/transmitter-selectors.js";
 import { fetchFiles } from "../filebrowser/filebrowser-slice.jsx";
 
+const PLAYBACK_DEFAULT_FFT_OVERLAP_PERCENT = 50;
+
 const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemainingSecondsRef }, ref) {
     const { t } = useTranslation('waterfall');
     const dispatch = useDispatch();
@@ -1145,7 +1147,7 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
 
             // Set antenna to "RX" for sigmfplayback
             dispatch(setSelectedAntenna("RX"));
-            dispatch(setFFTOverlapPercent(0));
+            dispatch(setFFTOverlapPercent(PLAYBACK_DEFAULT_FFT_OVERLAP_PERCENT));
 
             // Set gain to 0 for playback
             dispatch(setGain(0));
@@ -1171,7 +1173,7 @@ const WaterfallSettings = forwardRef(function WaterfallSettings({ playbackRemain
                     tunerAgc: tunerAgc,
                     rtlAgc: rtlAgc,
                     fftWindow: fftWindow,
-                    fftOverlapPercent: 0,
+                    fftOverlapPercent: PLAYBACK_DEFAULT_FFT_OVERLAP_PERCENT,
                     fftOverlapDepth: fftOverlapDepth,
                     antenna: "RX",
                     soapyAgc: soapyAgc,
