@@ -313,8 +313,7 @@ export const useSocketEventHandlers = (socket, enabled = true) => {
         });
 
         // File browser state updates (pub/sub model)
-        socket.on("file_browser_state", (state) => {
-
+        const handleFileBrowserState = (state) => {
             switch (state.action) {
                 case 'list-files':
                     // Manually dispatch fulfilled action with actual data (not pending)
@@ -359,7 +358,8 @@ export const useSocketEventHandlers = (socket, enabled = true) => {
                 default:
                     console.warn('Unknown file browser action:', state.action);
             }
-        });
+        };
+        socket.on("file_browser_state", handleFileBrowserState);
 
         // File browser errors
         socket.on("file_browser_error", (errorData) => {
@@ -935,7 +935,7 @@ export const useSocketEventHandlers = (socket, enabled = true) => {
             socket.off("ui-tracker-state");
             socket.off("tracker-command-status");
             socket.off("tracker-instances");
-            socket.off("file_browser_state");
+            socket.off("file_browser_state", handleFileBrowserState);
             socket.off("file_browser_error");
             socket.off("recording_state");
             socket.off("vfo-states");

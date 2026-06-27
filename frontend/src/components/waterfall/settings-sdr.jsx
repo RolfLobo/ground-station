@@ -785,7 +785,10 @@ function areSdrAccordionPropsEqual(prevProps, nextProps) {
         prevProps.onRtlAgcChange === nextProps.onRtlAgcChange &&
         prevProps.onGainElementChange === nextProps.onGainElementChange &&
         prevProps.isRecording === nextProps.isRecording &&
-        prevProps.startStreamValidationErrors === nextProps.startStreamValidationErrors
+        prevProps.startStreamValidationErrors === nextProps.startStreamValidationErrors &&
+        prevProps.playbackRecordings === nextProps.playbackRecordings &&
+        prevProps.playbackRecordingsLoading === nextProps.playbackRecordingsLoading &&
+        prevProps.selectedPlaybackRecordingName === nextProps.selectedPlaybackRecordingName
     );
 }
 
