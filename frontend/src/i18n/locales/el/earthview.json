@@ -14,6 +14,16 @@
     "decayed": "Κατέπεσε",
     "updated": "Ενημερώθηκε",
     "launched": "Εκτοξεύτηκε",
+    "context_menu": {
+      "set_as_target": "Ορισμός ως στόχου...",
+      "edit_properties": "Επεξεργασία ιδιοτήτων...",
+      "edit_transmitters": "Επεξεργασία πομποδεκτών...",
+      "schedule_observation": "Προγραμματισμός παρατήρησης...",
+      "monitor_satellite": "Παρακολούθηση αυτού του δορυφόρου...",
+      "copy_norad": "Αντιγραφή NORAD ID",
+      "copy_summary": "Αντιγραφή σύνοψης δορυφόρου",
+      "edit_transmitters_title": "Επεξεργασία πομποδεκτών: {{name}}"
+    },
     "no_alternative_names": "Δεν υπάρχουν εναλλακτικά ονόματα",
     "status_unknown": "Αγνωστη",
     "status_active": "Ενεργός",
@@ -44,6 +54,10 @@
     "status_upcoming": "Επερχόμενη",
     "status_passed": "Ολοκληρώθηκε",
     "status_dead": "Ανενεργός",
+    "context_menu": {
+      "copy_pass_window": "Αντιγραφή παραθύρου διέλευσης",
+      "copy_pass_summary": "Αντιγραφή σύνοψης διέλευσης"
+    },
     "no_value": "χωρίς τιμή",
     "no_data": "Χωρίς δεδομένα",
     "no_passes": "Δεν εντοπίστηκαν διελεύσεις για τις επόμενες {{hours}} ώρες"

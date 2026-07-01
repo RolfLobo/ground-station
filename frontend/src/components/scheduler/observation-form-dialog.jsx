@@ -19,6 +19,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     Dialog,
     DialogTitle,
@@ -203,6 +204,7 @@ const groupTransmittersByBand = (transmitters) => {
 
 const ObservationFormDialog = () => {
     const dispatch = useDispatch();
+    const { t } = useTranslation('common');
     const { socket } = useSocket();
 
     const open = useSelector((state) => state.scheduler?.dialogOpen || false);
@@ -1082,12 +1084,31 @@ const ObservationFormDialog = () => {
                 sx={{
                     bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
                     borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-                    fontSize: '1.25rem',
-                    fontWeight: 'bold',
                     py: 2.5,
                 }}
             >
-                {selectedObservation?.id ? `Edit Observation: ${formData.name || 'Unnamed'}` : 'New Observation'}
+                <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                        {selectedObservation?.id
+                            ? t('scheduler_dialogs.observation.edit_title', {
+                                name: formData.name || t('scheduler_dialogs.observation.unnamed'),
+                            })
+                            : t('scheduler_dialogs.observation.new_title')}
+                    </Typography>
+                    {!selectedObservation?.id && (
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                mt: 0.65,
+                                color: 'text.secondary',
+                                fontWeight: 400,
+                                lineHeight: 1.35,
+                            }}
+                        >
+                            {t('scheduler_dialogs.observation.new_subtitle')}
+                        </Typography>
+                    )}
+                </Box>
             </DialogTitle>
 
             <DialogContent
@@ -1102,7 +1123,7 @@ const ObservationFormDialog = () => {
                     py: 3,
                 }}
             >
-                <Stack spacing={3} sx={{ mt: 2 }}>
+                <Stack spacing={3}>
                     {/* Enabled Checkbox */}
                     <Box>
                         <FormControlLabel

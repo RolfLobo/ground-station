@@ -83,6 +83,8 @@ import VersionInfo from "./version-info.jsx";
 import VersionUpdateOverlay from "./version-update-overlay.jsx";
 import UpdateIndicator from "./update-indicator.jsx";
 import PerformanceMetricsDialog from "../performance/performance-metrics-dialog.jsx";
+import ObservationFormDialog from "../scheduler/observation-form-dialog.jsx";
+import MonitoredSatelliteDialog from "../scheduler/monitored-satellite-dialog.jsx";
 import BackgroundTasksPopover from "../tasks/tasks-popover.jsx";
 import LocationPage from "../settings/location-form.jsx";
 import MenuIcon from '@mui/icons-material/Menu';
@@ -1522,6 +1524,10 @@ export default function Layout() {
                 {connected && !initialDataLoading ? <Outlet /> : <ConnectionOverlay />}
                 {hasVersionChanged && <VersionUpdateOverlay />}
                 <PerformanceMetricsDialog />
+                {/* Keep scheduler dialogs mounted at app-layout scope so other pages
+                    can open them without routing to /scheduler first. */}
+                <ObservationFormDialog />
+                <MonitoredSatelliteDialog />
             </Box>
 
             {/* Location Setup Dialog */}

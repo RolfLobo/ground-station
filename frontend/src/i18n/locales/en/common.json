@@ -124,5 +124,18 @@
     "footprint_color": "Footprint color",
     "past_orbit_color": "Past orbit line color",
     "future_orbit_color": "Future orbit line color"
+  },
+  "scheduler_dialogs": {
+    "observation": {
+      "new_title": "New Observation",
+      "edit_title": "Edit Observation: {{name}}",
+      "new_subtitle": "Once created and enabled, this observation will run automatically at the selected pass window.",
+      "unnamed": "Unnamed"
+    },
+    "monitored": {
+      "new_title": "Add Monitored Satellite",
+      "edit_title": "Edit Monitored Satellite",
+      "new_subtitle": "Once monitored, the scheduler will automatically create new observations for upcoming passes that match these criteria."
+    }
   }
 }

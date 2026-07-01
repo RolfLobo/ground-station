@@ -19,6 +19,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     Dialog,
     DialogTitle,
@@ -187,9 +188,11 @@ const groupTransmittersByBand = (transmitters) => {
 
 export default function MonitoredSatelliteDialog() {
     const dispatch = useDispatch();
+    const { t } = useTranslation('common');
     const { socket } = useSocket();
     const open = useSelector((state) => state.scheduler?.monitoredSatelliteDialogOpen || false);
     const selectedMonitoredSatellite = useSelector((state) => state.scheduler?.selectedMonitoredSatellite);
+    const isEditingMonitoredSatellite = Boolean(selectedMonitoredSatellite?.id);
     const sdrs = useSelector((state) => state.sdrs?.sdrs || []);
     const selectedSatelliteId = useSelector((state) => state.scheduler?.satelliteSelection?.satelliteId);
     const selectedGroupId = useSelector((state) => state.scheduler?.satelliteSelection?.groupId);
@@ -868,7 +871,7 @@ export default function MonitoredSatelliteDialog() {
             ? formData.sessions
             : [{ sdr: formData.sdr, tasks: formData.tasks }];
 
-        if (selectedMonitoredSatellite) {
+        if (isEditingMonitoredSatellite) {
             // Update existing monitored satellite
             dispatch(updateMonitoredSatelliteAsync({
                 socket,
@@ -913,12 +916,29 @@ export default function MonitoredSatelliteDialog() {
                 sx={{
                     bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
                     borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-                    fontSize: '1.25rem',
-                    fontWeight: 'bold',
                     py: 2.5,
                 }}
             >
-                {selectedMonitoredSatellite ? 'Edit Monitored Satellite' : 'Add Monitored Satellite'}
+                <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+                        {isEditingMonitoredSatellite
+                            ? t('scheduler_dialogs.monitored.edit_title')
+                            : t('scheduler_dialogs.monitored.new_title')}
+                    </Typography>
+                    {!isEditingMonitoredSatellite && (
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                mt: 0.65,
+                                color: 'text.secondary',
+                                fontWeight: 400,
+                                lineHeight: 1.35,
+                            }}
+                        >
+                            {t('scheduler_dialogs.monitored.new_subtitle')}
+                        </Typography>
+                    )}
+                </Box>
             </DialogTitle>
 
             <DialogContent
@@ -933,7 +953,7 @@ export default function MonitoredSatelliteDialog() {
                     py: 3,
                 }}
             >
-                <Stack spacing={3} sx={{ mt: 2 }}>
+                <Stack spacing={3}>
                     {/* Error Alert */}
                     {saveError && (
                         <Box
@@ -2438,7 +2458,7 @@ export default function MonitoredSatelliteDialog() {
                         },
                     }}
                 >
-                    {isSaving ? 'Saving...' : (selectedMonitoredSatellite ? 'Update' : 'Save')}
+                    {isSaving ? 'Saving...' : (isEditingMonitoredSatellite ? 'Update' : 'Save')}
                 </Button>
             </DialogActions>
 
