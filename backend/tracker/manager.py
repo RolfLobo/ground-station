@@ -102,15 +102,13 @@ class TrackerManager:
     @staticmethod
     def _build_non_satellite_transmitter_target_key(tracking_state: Dict[str, Any]) -> str:
         target_type = TrackerManager._normalize_target_type(tracking_state)
-        return (
-            crud.transmitters.build_target_key(
-                target_type=target_type,
-                mission_id=tracking_state.get("mission_id"),
-                command=tracking_state.get("command"),
-                body_id=tracking_state.get("body_id"),
-            )
-            or ""
-        )
+        if target_type == "body":
+            body_id = str(tracking_state.get("body_id") or "").strip().lower()
+            return f"body:{body_id}" if body_id else ""
+        if target_type == "mission":
+            command = str(tracking_state.get("command") or "").strip()
+            return f"mission:{command}" if command else ""
+        return ""
 
     @staticmethod
     async def _fetch_non_satellite_transmitters(

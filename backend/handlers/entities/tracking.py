@@ -128,15 +128,13 @@ def _build_non_satellite_transmitter_target_key(
     tracking_value: Dict[str, Any],
     target_type: str,
 ) -> str:
-    return (
-        crud.transmitters.build_target_key(
-            target_type=target_type,
-            mission_id=tracking_value.get("mission_id"),
-            command=tracking_value.get("command"),
-            body_id=tracking_value.get("body_id"),
-        )
-        or ""
-    )
+    if target_type == "body":
+        body_id = str(tracking_value.get("body_id") or "").strip().lower()
+        return f"body:{body_id}" if body_id else ""
+    if target_type == "mission":
+        command = str(tracking_value.get("command") or "").strip()
+        return f"mission:{command}" if command else ""
+    return ""
 
 
 def _normalize_target_update_payload(value: Dict[str, Any]) -> Dict[str, Any]:
@@ -167,6 +165,7 @@ def _normalize_target_update_payload(value: Dict[str, Any]) -> Dict[str, Any]:
         payload["mission_id"] = mission_id or None
         payload_target_name = str(payload.get("target_name") or "").strip()
         payload["target_name"] = payload_target_name or command
+        payload["target_key"] = f"mission:{command}"
         payload["body_id"] = None
         payload["norad_id"] = None
         payload["group_id"] = None
@@ -187,11 +186,13 @@ def _normalize_target_update_payload(value: Dict[str, Any]) -> Dict[str, Any]:
             payload["target_name"] = canonical_body_name or body_id
         else:
             payload["target_name"] = payload_target_name
+        payload["target_key"] = f"body:{body_id}"
         payload["command"] = None
         payload["mission_id"] = None
         payload["norad_id"] = None
         payload["group_id"] = None
     else:
+        payload["target_key"] = None
         payload["mission_id"] = None
 
     return {"success": True, "value": payload}

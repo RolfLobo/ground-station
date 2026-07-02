@@ -72,14 +72,8 @@ def _resolve_target_search_hints(query: str) -> Dict[str, Any]:
 
 
 def _build_mission_transmitter_target_key(mission: Dict[str, Any]) -> str:
-    return (
-        crud.transmitters.build_target_key(
-            target_type="mission",
-            mission_id=mission.get("id"),
-            command=mission.get("command"),
-        )
-        or ""
-    )
+    command = str(mission.get("command") or "").strip()
+    return f"mission:{command}" if command else ""
 
 
 def _build_body_transmitter_target_key(body_id: str) -> str:
@@ -317,11 +311,11 @@ async def search_targets(
             if not command:
                 continue
             target_key = _build_mission_transmitter_target_key(mission)
-            mission_id = target_key.split(":", 1)[1] if target_key.startswith("mission:") else ""
+            mission_id = str(mission.get("id") or "").strip().lower()
             display_name = str(mission.get("display_name") or command).strip()
             results.append(
                 {
-                    "id": f"mission:{mission_id}" if mission_id else target_key,
+                    "id": target_key,
                     "target_type": "mission",
                     "target_key": target_key,
                     "target_name": display_name,

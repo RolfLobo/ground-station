@@ -35,12 +35,9 @@ const formatBodyNameFromId = (bodyId) => {
         .join(' ');
 };
 
-const buildTargetKey = ({ targetType, missionId, command, bodyId }) => {
+const buildTargetKey = ({ targetType, command, bodyId }) => {
     if (targetType === 'mission') {
-        if (missionId) {
-            return `mission:${missionId}`;
-        }
-        return command ? `missioncmd:${command}` : '';
+        return command ? `mission:${command}` : '';
     }
     if (targetType === 'body') {
         return bodyId ? `body:${bodyId}` : '';
@@ -60,28 +57,13 @@ export const buildTargetKeyFromCelestialRow = (row = {}) => {
         return bodyId ? `body:${bodyId}` : '';
     }
     if (explicitType === 'mission') {
-        const missionId = normalizeMissionId(row?.mission_id || row?.missionId);
-        if (missionId) {
-            return `mission:${missionId}`;
-        }
         const command = normalizeText(row?.command);
-        return command ? `missioncmd:${command}` : '';
+        return command ? `mission:${command}` : '';
     }
     if (explicitType === 'satellite') {
         return '';
     }
-
-    // Fallback for partially populated rows where target_type is missing.
-    const fallbackBodyId = normalizeBodyId(row?.body_id || row?.bodyId);
-    if (fallbackBodyId) {
-        return `body:${fallbackBodyId}`;
-    }
-    const fallbackMissionId = normalizeMissionId(row?.mission_id || row?.missionId);
-    if (fallbackMissionId) {
-        return `mission:${fallbackMissionId}`;
-    }
-    const fallbackCommand = normalizeText(row?.command);
-    return fallbackCommand ? `missioncmd:${fallbackCommand}` : '';
+    return '';
 };
 
 const isIdentifierOnlyName = ({ name, targetType, missionId, command, bodyId }) => {
@@ -198,14 +180,12 @@ export const clampTargetPassHours = (value) => {
 export const buildTargetKeyFromTrackingState = (trackingState = {}) => {
     const targetType = normalizeTargetType(trackingState);
     if (targetType === 'mission' || targetType === 'body') {
-        return buildTargetKeyFromCelestialRow({
-            target_type: targetType,
-            mission_id: trackingState?.mission_id,
-            command: trackingState?.command,
-            body_id: trackingState?.body_id,
-            target_key: trackingState?.target_key,
-            targetKey: trackingState?.targetKey,
-        });
+        if (targetType === 'mission') {
+            const command = normalizeText(trackingState?.command);
+            return command ? `mission:${command}` : '';
+        }
+        const bodyId = normalizeBodyId(trackingState?.body_id);
+        return bodyId ? `body:${bodyId}` : '';
     }
     return '';
 };

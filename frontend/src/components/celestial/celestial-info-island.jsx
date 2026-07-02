@@ -32,12 +32,8 @@ const buildTargetKey = (entry) => {
         const bodyId = String(entry?.bodyId || entry?.body_id || entry?.command || '').trim().toLowerCase();
         return bodyId ? `body:${bodyId}` : '';
     }
-    const missionId = String(entry?.mission_id || entry?.missionId || '').trim();
-    if (missionId) {
-        return `mission:${missionId}`;
-    }
     const command = String(entry?.command || '').trim();
-    return command ? `missioncmd:${command}` : '';
+    return command ? `mission:${command}` : '';
 };
 
 const magnitude3 = (vector) => {
@@ -105,12 +101,8 @@ const buildTrackingTargetKey = (trackingState = {}) => {
         return bodyId ? `body:${bodyId}` : '';
     }
     if (targetType === 'mission') {
-        const missionId = String(trackingState?.mission_id || '').trim();
-        if (missionId) {
-            return `mission:${missionId}`;
-        }
         const command = String(trackingState?.command || '').trim();
-        return command ? `missioncmd:${command}` : '';
+        return command ? `mission:${command}` : '';
     }
     return '';
 };

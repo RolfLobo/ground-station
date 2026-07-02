@@ -43,10 +43,12 @@ const normalizeTargetOption = (rawOption) => {
             ? mission_id_value.slice('mission:'.length)
             : (mission_id_value.includes(':') ? '' : mission_id_value);
         const displayName = String(rawOption?.target_name || rawOption?.display_name || command).trim();
+        const missionTargetKey = `mission:${command}`;
         return {
             ...rawOption,
-            id: String(rawOption?.id || (normalizedMissionId ? `mission:${normalizedMissionId}` : `missioncmd:${command.toLowerCase()}`)),
+            id: missionTargetKey,
             target_type: TARGET_TYPES.MISSION,
+            target_key: missionTargetKey,
             target_name: displayName,
             target_identifier: String(rawOption?.target_identifier || command).trim(),
             mission_id: normalizedMissionId || null,
