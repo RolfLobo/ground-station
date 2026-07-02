@@ -33,6 +33,7 @@ from sqlalchemy import (
     MetaData,
     String,
     TypeDecorator,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -241,6 +242,7 @@ class Transmitters(Base):
     citation = Column(String, nullable=True)
     service = Column(String, nullable=True)
     source = Column(String, nullable=True)
+    source_transmitter_id = Column(String, nullable=True, index=True)
     iaru_coordination = Column(String, nullable=True)
     iaru_coordination_url = Column(String, nullable=True)
     itu_notification = Column(JSON, nullable=True)
@@ -260,6 +262,7 @@ class Transmitters(Base):
             "(norad_cat_id IS NULL AND target_key IS NOT NULL)",
             name="ck_transmitters_owner_scope",
         ),
+        UniqueConstraint("source", "source_transmitter_id", name="uq_transmitters_source_ext_id"),
     )
 
 

@@ -253,7 +253,7 @@ class TrackerManager:
             rig_state (str, optional): Rig state - "connected", "disconnected", "tuning"
             rotator_id (str, optional): UUID of rotator hardware or "none"
             rig_id (str, optional): UUID of rig hardware or "none"
-            transmitter_id (str, optional): UUID of transmitter or "none"
+            transmitter_id (str, optional): Transmitter id or "none"
             rig_vfo (str, optional): VFO configuration or "none"
             vfo1 (str, optional): VFO1 mode - "uplink" or "downlink"
             vfo2 (str, optional): VFO2 mode - "uplink" or "downlink"

@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Union
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.common import logger, serialize_object
@@ -27,6 +27,28 @@ from db.models import Transmitters
 
 NULL_MARKERS = {"", "-", None}
 UNSET = object()
+TRANSMITTER_ID_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+TRANSMITTER_ID_BASE = len(TRANSMITTER_ID_ALPHABET)
+TRANSMITTER_ID_LENGTH = 22
+
+
+def _uuid_to_short_transmitter_id(value: uuid.UUID | str) -> str:
+    """Encode a UUID as a SatNOGS-style 22-char transmitter id."""
+    uid = value if isinstance(value, uuid.UUID) else uuid.UUID(str(value).strip())
+    number = uid.int
+    encoded = []
+
+    while number:
+        number, remainder = divmod(number, TRANSMITTER_ID_BASE)
+        encoded.append(TRANSMITTER_ID_ALPHABET[remainder])
+
+    if not encoded:
+        encoded.append(TRANSMITTER_ID_ALPHABET[0])
+
+    return "".join(reversed(encoded)).rjust(
+        TRANSMITTER_ID_LENGTH,
+        TRANSMITTER_ID_ALPHABET[0],
+    )
 
 
 def _is_null_marker(value: Any) -> bool:
@@ -312,7 +334,12 @@ async def fetch_transmitter(session: AsyncSession, transmitter_id: Union[uuid.UU
         if isinstance(transmitter_id, uuid.UUID):
             transmitter_id = str(transmitter_id)
 
-        stmt = select(Transmitters).filter(Transmitters.id == transmitter_id)
+        stmt = select(Transmitters).filter(
+            or_(
+                Transmitters.id == transmitter_id,
+                Transmitters.source_transmitter_id == transmitter_id,
+            )
+        )
         result = await session.execute(stmt)
         transmitter = result.scalar_one_or_none()
         transmitter = serialize_object(transmitter)
@@ -330,9 +357,9 @@ async def add_transmitter(session: AsyncSession, data: dict) -> dict:
     """
     try:
         data = _normalize_transmitter_payload(data)
-        new_id = uuid.uuid4()
+        new_id = _uuid_to_short_transmitter_id(uuid.uuid4())
         now = datetime.now(timezone.utc)
-        data["id"] = str(new_id)
+        data["id"] = new_id
         data["added"] = now
         data["updated"] = now
 
@@ -371,7 +398,12 @@ async def edit_transmitter(session: AsyncSession, data: dict) -> dict:
         data = _normalize_transmitter_payload(data, for_edit=True)
 
         # Ensure the record exists first
-        stmt = select(Transmitters).filter(Transmitters.id == transmitter_id)
+        stmt = select(Transmitters).filter(
+            or_(
+                Transmitters.id == transmitter_id,
+                Transmitters.source_transmitter_id == transmitter_id,
+            )
+        )
         result = await session.execute(stmt)
         existing = result.scalar_one_or_none()
         if not existing:
@@ -382,7 +414,7 @@ async def edit_transmitter(session: AsyncSession, data: dict) -> dict:
 
         upd_stmt = (
             update(Transmitters)
-            .where(Transmitters.id == transmitter_id)
+            .where(Transmitters.id == existing.id)
             .values(**data)
             .returning(Transmitters)
         )
@@ -407,7 +439,14 @@ async def delete_transmitter(session: AsyncSession, transmitter_id: Union[uuid.U
         logger.info(transmitter_id)
 
         del_stmt = (
-            delete(Transmitters).where(Transmitters.id == transmitter_id).returning(Transmitters)
+            delete(Transmitters)
+            .where(
+                or_(
+                    Transmitters.id == transmitter_id,
+                    Transmitters.source_transmitter_id == transmitter_id,
+                )
+            )
+            .returning(Transmitters)
         )
         result = await session.execute(del_stmt)
         deleted = result.scalar_one_or_none()
