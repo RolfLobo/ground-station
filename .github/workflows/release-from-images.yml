@@ -162,6 +162,13 @@ jobs:
 
             After starting the container, access the web interface at `http://<YOUR_HOST>:7000`
 
+            > **First startup note:** On first run, it can take up to ~30 seconds after container startup for the frontend to become available.
+            >
+            > You can watch startup progress with:
+            > ```bash
+            > docker logs -f --tail=100 ground-station
+            > ```
+
             ### Upgrading an existing container:
             ```bash
             # Stop and remove the existing container
