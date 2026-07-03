@@ -11,6 +11,7 @@ single web interface.
 
 ## Recent Releases (Last 10 Tags)
 
+* **v0.7.9 (2026-07-03):** Added context menus for EarthView/celestial targets in monitored grids and passes, introduced inline actions for tracking/transmitter workflows, and improved target-key handling plus transmitter identifier management.
 * **v0.7.8 (2026-06-30):** Isolated waterfall marker drag interactions from container pan handlers, upgraded target badges to `TargetNumberIcon` in fleet and popover views, and improved target popover tracking/navigation behavior to streamline jumps to tracker pages.
 * **v0.7.7 (2026-06-30):** Improved waterfall VFO drag behavior and movement state handling, enhanced playback overlay responsiveness, added runtime scheduler metadata with clearer terminal-observation visibility, and refined target-slot badges plus EarthView satellite/transmitter editing flows.
 * **v0.7.6 (2026-06-28):** Added SDR usage badges with cross-session utilization tracking, persisted orbital sync state with UI hydration support, improved active non-satellite tracker resync during celestial sync, and refined target layout/schema behavior.
@@ -20,7 +21,6 @@ single web interface.
 * **v0.7.1 (2026-06-20):** Expanded celestial catalog defaults with major moons for Uranus, Neptune, and Pluto.
 * **v0.7.0 (2026-06-20):** Introduced UHD/USRP discovery integration, improved SoapySDR discovery/task monitoring, and cleaned up hardware management UX.
 * **v0.6.0 (2026-06-16):** Added SQLite concurrent-write retry handling, moved auth/session behavior to cookie-backed flows, introduced the Setup Wizard (with location restore and admin setup), and hardened setup/admin-recovery logic.
-* **v0.5.2 (2026-06-12):** Expanded planetarium/target map capabilities (interactive controls, fullscreen, pass handling), and refreshed docs/features descriptions.
 
 ## Screenshots
 
