@@ -535,16 +535,22 @@ const MonitoredCelestialGridIsland = ({
             {
                 field: 'distanceFromSunAu',
                 headerName: tCelestial('monitored.columns.distance_from_sun_au'),
-                width: 90,
-                minWidth: 90,
-                valueGetter: (value) => formatNumericUpTo(value, 3),
+                width: 100,
+                minWidth: 100,
+                valueGetter: (value) => {
+                    const formatted = formatNumericUpTo(value, 3);
+                    return formatted === '-' ? formatted : `${formatted} ${tCelestial('units.au')}`;
+                },
             },
             {
                 field: 'speedKmS',
                 headerName: tCelestial('monitored.columns.speed_km_s'),
-                width: 90,
-                minWidth: 90,
-                valueGetter: (value) => formatNumeric(value, 3),
+                width: 100,
+                minWidth: 100,
+                valueGetter: (value) => {
+                    const formatted = formatNumeric(value, 3);
+                    return formatted === '-' ? formatted : `${formatted} ${tCelestial('units.km_per_s')}`;
+                },
             },
             {
                 field: 'lightTimeMinutes',
