@@ -247,6 +247,19 @@ const OrbitalSourcesIconWithStatus = () => {
     );
 };
 
+// Wrapper component for celestial icon that reads Redux state
+const CelestialIconWithStatus = () => {
+    const solarLoading = useSelector((state) => state.celestial?.solarLoading);
+    const tracksLoading = useSelector((state) => state.celestial?.tracksLoading);
+    const showOverlay = Boolean(solarLoading || tracksLoading);
+
+    return (
+        <IconWithOverlay showOverlay={showOverlay} overlayType="sync">
+            <CelestialSolarIcon />
+        </IconWithOverlay>
+    );
+};
+
 // Wrapper component for FolderIcon that reads Redux state
 const FileBrowserIconWithStatus = () => {
     const hasNewFiles = useSelector((state) => state.filebrowser?.hasNewFiles);
@@ -286,7 +299,7 @@ export const getNavigation = ({ isAdmin = false } = {}) => {
         {
             segment: 'solarsystem',
             title: i18n.t('solar_system', { ns: 'navigation', defaultValue: 'Solar System' }),
-            icon: <CelestialSolarIcon />,
+            icon: <CelestialIconWithStatus />,
         },
         {
             segment: 'earthview',

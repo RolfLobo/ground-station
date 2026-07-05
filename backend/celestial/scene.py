@@ -2147,7 +2147,9 @@ async def build_celestial_tracks(
         allow_network_fetch=allow_network_fetch,
         logger=logger,
     )
-    body_snapshot_by_id: Dict[str, Dict[str, Any]] = {}
+    # Tracks-only payloads do not build the full solar-system scene, but body
+    # targets still need the synthetic Sun origin from the scene snapshot map.
+    body_snapshot_by_id = _build_body_snapshot_by_id([])
     celestial = await _fetch_celestial_with_cache(
         targets,
         epoch,
