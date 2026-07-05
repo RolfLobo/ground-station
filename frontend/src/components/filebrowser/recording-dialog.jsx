@@ -44,6 +44,12 @@ function formatBytes(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
+function formatDimensions(width, height) {
+    return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
+        ? `${width}×${height}`
+        : null;
+}
+
 function buildAssociatedFiles(recording) {
     if (!recording) return [];
 
@@ -77,9 +83,7 @@ function buildAssociatedFiles(recording) {
             size: recording.snapshot.size,
             url: recording.snapshot.url,
             previewUrl: recording.snapshot.thumbnail_url || recording.snapshot.url,
-            details: recording.snapshot.width && recording.snapshot.height
-                ? `${recording.snapshot.width}×${recording.snapshot.height}`
-                : null,
+            dimensions: formatDimensions(recording.snapshot.width, recording.snapshot.height),
         });
 
         const thumbnail = recording.snapshot.thumbnail;
@@ -91,6 +95,7 @@ function buildAssociatedFiles(recording) {
                 size: thumbnail?.size,
                 url: thumbnail?.url || recording.snapshot.thumbnail_url,
                 previewUrl: thumbnail?.url || recording.snapshot.thumbnail_url,
+                dimensions: formatDimensions(thumbnail?.width, thumbnail?.height),
             });
         }
     }
@@ -285,23 +290,39 @@ export default function RecordingDialog({ open, onClose, recording }) {
                                                 <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-word' }}>
                                                     {file.filename}
                                                 </Typography>
-                                                {file.details && (
-                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
-                                                        {file.details}
-                                                    </Typography>
-                                                )}
                                             </Box>
-                                            <Chip
-                                                label={formatBytes(file.size)}
-                                                size="small"
+                                            <Box
                                                 sx={{
+                                                    display: 'flex',
+                                                    flexDirection: { xs: 'row', sm: 'column' },
+                                                    alignItems: { xs: 'center', sm: 'flex-end' },
+                                                    justifyContent: 'center',
+                                                    gap: 0.5,
                                                     justifySelf: { xs: 'start', sm: 'end' },
                                                     gridColumn: { xs: '2', sm: 'auto' },
-                                                    height: '22px',
-                                                    fontSize: '0.7rem',
-                                                    '& .MuiChip-label': { px: 0.85 },
                                                 }}
-                                            />
+                                            >
+                                                {file.dimensions && (
+                                                    <Chip
+                                                        label={file.dimensions}
+                                                        size="small"
+                                                        sx={{
+                                                            height: '22px',
+                                                            fontSize: '0.7rem',
+                                                            '& .MuiChip-label': { px: 0.85 },
+                                                        }}
+                                                    />
+                                                )}
+                                                <Chip
+                                                    label={formatBytes(file.size)}
+                                                    size="small"
+                                                    sx={{
+                                                        height: '22px',
+                                                        fontSize: '0.7rem',
+                                                        '& .MuiChip-label': { px: 0.85 },
+                                                    }}
+                                                />
+                                            </Box>
                                         </Box>
                                     ))}
                                 </Box>

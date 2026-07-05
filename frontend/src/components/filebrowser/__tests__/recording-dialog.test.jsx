@@ -28,6 +28,8 @@ const recording = {
             filename: 'NOAA_apt_20260101_120000.jpg',
             url: '/recordings/thumbnails/NOAA_apt_20260101_120000.jpg?v=1',
             size: 512,
+            width: 320,
+            height: 180,
         },
     },
     download_urls: {
@@ -61,6 +63,7 @@ describe('RecordingDialog', () => {
 
         expect(screen.getByText('Thumbnail')).toBeInTheDocument();
         expect(screen.getByText('NOAA_apt_20260101_120000.jpg')).toBeInTheDocument();
+        expect(screen.getByText('320×180')).toBeInTheDocument();
         expect(screen.getByText('512 Bytes')).toBeInTheDocument();
         expect(screen.getAllByAltText('Thumbnail preview')).toHaveLength(1);
     });

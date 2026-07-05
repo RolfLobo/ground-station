@@ -84,3 +84,5 @@ def test_build_recording_snapshot_info_includes_thumbnail_file_metadata(tmp_path
     assert snapshot_info["thumbnail"]["filename"] == "recording.jpg"
     assert snapshot_info["thumbnail"]["url"] == snapshot_info["thumbnail_url"]
     assert snapshot_info["thumbnail"]["size"] == get_image_thumbnail_path(source).stat().st_size
+    assert snapshot_info["thumbnail"]["width"] == 640
+    assert snapshot_info["thumbnail"]["height"] == 360

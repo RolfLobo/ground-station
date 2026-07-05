@@ -135,10 +135,13 @@ def build_recording_snapshot_info(snapshot_file: Path) -> Optional[Dict[str, Any
     if thumbnail_url:
         thumbnail_path = get_image_thumbnail_path(snapshot_file)
         if thumbnail_path.exists() and thumbnail_path.is_file():
+            thumbnail_width, thumbnail_height = get_image_dimensions(str(thumbnail_path))
             thumbnail_info = {
                 "filename": thumbnail_path.name,
                 "url": thumbnail_url,
                 "size": thumbnail_path.stat().st_size,
+                "width": thumbnail_width,
+                "height": thumbnail_height,
             }
 
     return {
