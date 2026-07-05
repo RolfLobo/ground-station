@@ -17,7 +17,7 @@
  *
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Box,
     Typography,
@@ -30,15 +30,72 @@ import {
     Stack,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import ImageIcon from '@mui/icons-material/Image';
 import { useSelector } from 'react-redux';
 import WaterfallViewer from './waterfall-viewer.jsx';
 
 function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 0) return 'Unknown size';
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
     const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function buildAssociatedFiles(recording) {
+    if (!recording) return [];
+
+    const files = [];
+
+    if (recording.data_file) {
+        files.push({
+            key: 'data',
+            type: 'IQ Data',
+            filename: recording.data_file,
+            size: recording.data_size,
+            url: recording.download_urls?.data,
+        });
+    }
+
+    if (recording.meta_file) {
+        files.push({
+            key: 'metadata',
+            type: 'Metadata',
+            filename: recording.meta_file,
+            size: recording.meta_size,
+            url: recording.download_urls?.meta,
+        });
+    }
+
+    if (recording.snapshot) {
+        files.push({
+            key: 'snapshot',
+            type: 'Waterfall Snapshot',
+            filename: recording.snapshot.filename,
+            size: recording.snapshot.size,
+            url: recording.snapshot.url,
+            previewUrl: recording.snapshot.thumbnail_url || recording.snapshot.url,
+            details: recording.snapshot.width && recording.snapshot.height
+                ? `${recording.snapshot.width}×${recording.snapshot.height}`
+                : null,
+        });
+
+        const thumbnail = recording.snapshot.thumbnail;
+        if (thumbnail || recording.snapshot.thumbnail_url) {
+            files.push({
+                key: 'thumbnail',
+                type: 'Thumbnail',
+                filename: thumbnail?.filename || 'Generated thumbnail',
+                size: thumbnail?.size,
+                url: thumbnail?.url || recording.snapshot.thumbnail_url,
+                previewUrl: thumbnail?.url || recording.snapshot.thumbnail_url,
+            });
+        }
+    }
+
+    return files;
 }
 
 export default function RecordingDialog({ open, onClose, recording }) {
@@ -69,6 +126,8 @@ export default function RecordingDialog({ open, onClose, recording }) {
         gap: { xs: 0.5, sm: 2 },
         py: 0.5,
     };
+
+    const associatedFiles = useMemo(() => buildAssociatedFiles(recording), [recording]);
 
     const formatFrequency = (frequencyHz) => {
         if (frequencyHz === null || frequencyHz === undefined) return '';
@@ -171,18 +230,80 @@ export default function RecordingDialog({ open, onClose, recording }) {
                                 <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                                     Files
                                 </Typography>
-                                <Box sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                                    <Box sx={{ mb: 0.5 }}>
-                                        {recording.data_file} ({formatBytes(recording.data_size)})
-                                    </Box>
-                                    <Box sx={{ mb: recording.snapshot ? 0.5 : 0 }}>
-                                        {recording.meta_file}
-                                    </Box>
-                                    {recording.snapshot && (
-                                        <Box>
-                                            {recording.snapshot.filename} ({recording.snapshot.width}×{recording.snapshot.height})
+                                <Box sx={{ display: 'grid', gap: 1 }}>
+                                    {associatedFiles.map((file) => (
+                                        <Box
+                                            key={file.key}
+                                            sx={{
+                                                display: 'grid',
+                                                gridTemplateColumns: { xs: '48px 1fr', sm: '56px 1fr auto' },
+                                                alignItems: 'center',
+                                                gap: 1.25,
+                                                p: 1,
+                                                border: '1px solid',
+                                                borderColor: 'divider',
+                                                borderRadius: 1,
+                                                bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'grey.800' : 'common.white'),
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    width: { xs: 48, sm: 56 },
+                                                    height: { xs: 36, sm: 42 },
+                                                    borderRadius: 1,
+                                                    bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100'),
+                                                    border: '1px solid',
+                                                    borderColor: 'divider',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    overflow: 'hidden',
+                                                }}
+                                            >
+                                                {file.previewUrl ? (
+                                                    <Box
+                                                        component="img"
+                                                        src={file.previewUrl}
+                                                        alt={`${file.type} preview`}
+                                                        sx={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'cover',
+                                                            display: 'block',
+                                                        }}
+                                                    />
+                                                ) : file.type === 'Waterfall Snapshot' || file.type === 'Thumbnail' ? (
+                                                    <ImageIcon sx={{ color: 'primary.main', fontSize: 24 }} />
+                                                ) : (
+                                                    <InsertDriveFileIcon sx={{ color: 'text.secondary', fontSize: 24 }} />
+                                                )}
+                                            </Box>
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                                    {file.type}
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-word' }}>
+                                                    {file.filename}
+                                                </Typography>
+                                                {file.details && (
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
+                                                        {file.details}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                            <Chip
+                                                label={formatBytes(file.size)}
+                                                size="small"
+                                                sx={{
+                                                    justifySelf: { xs: 'start', sm: 'end' },
+                                                    gridColumn: { xs: '2', sm: 'auto' },
+                                                    height: '22px',
+                                                    fontSize: '0.7rem',
+                                                    '& .MuiChip-label': { px: 0.85 },
+                                                }}
+                                            />
                                         </Box>
-                                    )}
+                                    ))}
                                 </Box>
                             </Box>
                         </Box>
