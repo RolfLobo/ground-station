@@ -215,6 +215,71 @@ const hasFiniteXYZ = (position) =>
     && Number.isFinite(Number(position[1]))
     && Number.isFinite(Number(position[2]));
 
+const normalizeBodyId = (value) => String(value || '').trim().toLowerCase();
+
+const computeMedian = (values) => {
+    const sorted = values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+        .sort((a, b) => a - b);
+    if (!sorted.length) return null;
+    const middle = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 1) return sorted[middle];
+    return (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+const computeParentRelativeRadiusAu = (moon, parent) => {
+    if (!hasFiniteXYZ(moon?.position_xyz_au) || !hasFiniteXYZ(parent?.position_xyz_au)) {
+        return null;
+    }
+
+    const radii = [];
+    const moonSamples = Array.isArray(moon?.orbit_samples_xyz_au) ? moon.orbit_samples_xyz_au : [];
+    const parentSamples = Array.isArray(parent?.orbit_samples_xyz_au) ? parent.orbit_samples_xyz_au : [];
+    const moonTimes = Array.isArray(moon?.orbit_sample_times_utc) ? moon.orbit_sample_times_utc : [];
+    const parentTimes = Array.isArray(parent?.orbit_sample_times_utc) ? parent.orbit_sample_times_utc : [];
+
+    if (moonSamples.length >= 2 && parentSamples.length >= 2) {
+        if (moonTimes.length && parentTimes.length) {
+            const parentSampleByTime = new Map();
+            parentTimes.forEach((time, index) => {
+                if (hasFiniteXYZ(parentSamples[index])) {
+                    parentSampleByTime.set(String(time), parentSamples[index]);
+                }
+            });
+            moonTimes.forEach((time, index) => {
+                const moonSample = moonSamples[index];
+                const parentSample = parentSampleByTime.get(String(time));
+                if (!hasFiniteXYZ(moonSample) || !hasFiniteXYZ(parentSample)) return;
+                radii.push(Math.hypot(
+                    Number(moonSample[0]) - Number(parentSample[0]),
+                    Number(moonSample[1]) - Number(parentSample[1]),
+                ));
+            });
+        } else if (moonSamples.length === parentSamples.length) {
+            moonSamples.forEach((moonSample, index) => {
+                const parentSample = parentSamples[index];
+                if (!hasFiniteXYZ(moonSample) || !hasFiniteXYZ(parentSample)) return;
+                radii.push(Math.hypot(
+                    Number(moonSample[0]) - Number(parentSample[0]),
+                    Number(moonSample[1]) - Number(parentSample[1]),
+                ));
+            });
+        }
+    }
+
+    const sampledRadius = computeMedian(radii.filter((radius) => radius > 0));
+    if (Number.isFinite(sampledRadius) && sampledRadius > 0) {
+        return sampledRadius;
+    }
+
+    const currentRadius = Math.hypot(
+        Number(moon.position_xyz_au[0]) - Number(parent.position_xyz_au[0]),
+        Number(moon.position_xyz_au[1]) - Number(parent.position_xyz_au[1]),
+    );
+    return Number.isFinite(currentRadius) && currentRadius > 0 ? currentRadius : null;
+};
+
 const HELIOCENTRIC_ORIGIN_EPSILON_AU = 1e-9;
 const SUN_LABEL_SINGLE_MODE_OFFSET_PX = 5;
 const isNearHeliocentricOriginXYZ = (position) => {
@@ -245,42 +310,6 @@ const hasFiniteXY = (position) =>
     && position.length >= 2
     && Number.isFinite(Number(position[0]))
     && Number.isFinite(Number(position[1]));
-
-const computeMedian = (values) => {
-    if (!Array.isArray(values) || values.length === 0) return null;
-    const sorted = values
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value))
-        .sort((a, b) => a - b);
-    if (!sorted.length) return null;
-    const mid = Math.floor(sorted.length / 2);
-    if (sorted.length % 2 === 0) {
-        return (sorted[mid - 1] + sorted[mid]) / 2;
-    }
-    return sorted[mid];
-};
-
-const computeRelativeMedianRadiusAu = (childSamples, parentSamples) => {
-    if (!Array.isArray(childSamples) || !Array.isArray(parentSamples)) return null;
-    const limit = Math.min(childSamples.length, parentSamples.length);
-    if (limit <= 0) return null;
-
-    const radii = [];
-    for (let index = 0; index < limit; index += 1) {
-        const child = childSamples[index];
-        const parent = parentSamples[index];
-        if (!hasFiniteXY(child) || !hasFiniteXY(parent)) continue;
-
-        const dx = Number(child[0]) - Number(parent[0]);
-        const dy = Number(child[1]) - Number(parent[1]);
-        const radius = Math.hypot(dx, dy);
-        if (Number.isFinite(radius) && radius > 0) {
-            radii.push(radius);
-        }
-    }
-
-    return computeMedian(radii);
-};
 
 const resolveTargetKey = (body) => {
     return buildTargetKeyFromCelestialRow(body);
@@ -638,42 +667,37 @@ const SolarSystemCanvas = ({
 
         const bodyById = new Map();
         renderablePlanets.forEach((body) => {
-            const bodyId = String(body?.id || '').trim().toLowerCase();
+            const bodyId = normalizeBodyId(body?.id);
             if (!bodyId) return;
             bodyById.set(bodyId, body);
         });
 
-        const rings = [];
-        renderablePlanets.forEach((body) => {
-            const bodyId = String(body?.id || '').trim().toLowerCase();
-            const bodyType = String(body?.body_type || '').trim().toLowerCase();
-            const parentId = String(body?.parent_id || '').trim().toLowerCase();
-            if (!bodyId || bodyType !== 'moon' || !parentId) return;
+        const rings = renderablePlanets
+            .filter((body) => normalizeBodyId(body?.body_type) === 'moon')
+            .map((moon) => {
+                const moonId = normalizeBodyId(moon?.id);
+                const parentId = normalizeBodyId(moon?.parent_id || moon?.parent_body_id);
+                if (!moonId || !parentId) return null;
 
-            const parent = bodyById.get(parentId);
-            if (!parent) return;
-            if (!hasFiniteXYZ(body.position_xyz_au) || !hasFiniteXYZ(parent.position_xyz_au)) return;
+                const parent = bodyById.get(parentId);
+                if (!parent || !hasFiniteXYZ(parent.position_xyz_au)) return null;
 
-            // Prefer a stable radius estimate from sample pairs, then fall back to current distance.
-            let radiusAu = computeRelativeMedianRadiusAu(
-                body.orbit_samples_xyz_au,
-                parent.orbit_samples_xyz_au,
-            );
-            if (!Number.isFinite(radiusAu) || radiusAu <= 0) {
-                const dx = Number(body.position_xyz_au[0]) - Number(parent.position_xyz_au[0]);
-                const dy = Number(body.position_xyz_au[1]) - Number(parent.position_xyz_au[1]);
-                radiusAu = Math.hypot(dx, dy);
-            }
-            if (!Number.isFinite(radiusAu) || radiusAu <= 0) return;
+                const radiusAu = computeParentRelativeRadiusAu(moon, parent);
+                if (!Number.isFinite(radiusAu) || radiusAu <= 0) return null;
 
-            rings.push({
-                key: `${parentId}:${bodyId}`,
-                parentId,
-                parentPositionXyAu: [Number(parent.position_xyz_au[0]), Number(parent.position_xyz_au[1])],
-                radiusAu,
-                color: PLANET_COLORS[bodyId] || PLANET_COLORS.moon || '#cfd8dc',
-            });
-        });
+                return {
+                    key: `${parentId}:${moonId}`,
+                    parentId,
+                    moonId,
+                    parentPositionXyAu: [
+                        Number(parent.position_xyz_au[0]),
+                        Number(parent.position_xyz_au[1]),
+                    ],
+                    radiusAu,
+                    color: PLANET_COLORS[moonId] || PLANET_COLORS.moon || '#cfd8dc',
+                };
+            })
+            .filter(Boolean);
 
         rings.sort((a, b) => {
             if (a.parentId === b.parentId) return a.radiusAu - b.radiusAu;
@@ -1421,7 +1445,8 @@ const SolarSystemCanvas = ({
         ctx.stroke();
 
         if (effectiveDisplayOptions.showPlanets && effectiveDisplayOptions.showPlanetOrbits) {
-            // Moon orbit guides around their parent planets (drawn as concentric reference rings).
+            // Parent-centered moon orbit rings are derived from Horizons-backed
+            // moon and parent vectors already present in the scene payload.
             if (moonOrbitRings.length > 0) {
                 ctx.save();
                 ctx.lineWidth = 1;
@@ -1430,7 +1455,7 @@ const SolarSystemCanvas = ({
                 moonOrbitRings.forEach((ring) => {
                     const [parentX, parentY] = toScreen(ring.parentPositionXyAu);
                     const radiusPx = ring.radiusAu * scale;
-                    if (!Number.isFinite(radiusPx) || radiusPx <= 2) return;
+                    if (!Number.isFinite(radiusPx) || radiusPx <= 0.75) return;
                     if (radiusPx > MAX_BACKGROUND_RING_RADIUS_PX) return;
 
                     const nearestX = clamp(parentX, 0, width);
@@ -1455,6 +1480,7 @@ const SolarSystemCanvas = ({
             // Planet orbits (sampled paths).
             ctx.lineWidth = 1;
             renderablePlanets.forEach((planet) => {
+                if (normalizeBodyId(planet?.body_type) === 'moon') return;
                 const samples = planet.orbit_samples_xyz_au || [];
                 if (!samples.length) return;
                 const sampleTimesUtc = planet.orbit_sample_times_utc || [];

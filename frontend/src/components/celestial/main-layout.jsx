@@ -65,6 +65,11 @@ const parsePositiveNumber = (value, fallback) => {
     if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
     return Math.min(parsed, MAX_PROJECTION_HOURS);
 };
+const hasFiniteXYZ = (position) => (
+    Array.isArray(position)
+    && position.length >= 3
+    && position.slice(0, 3).every((value) => Number.isFinite(Number(value)))
+);
 const getFullscreenElement = () =>
     document.fullscreenElement
     || document.webkitFullscreenElement
@@ -290,6 +295,7 @@ const CelestialMainLayout = () => {
     const [openSolarSystemLayoutOptionsDialog, setOpenSolarSystemLayoutOptionsDialog] = useState(false);
     const [solarSystemFullscreen, setSolarSystemFullscreen] = useState(false);
     const solarSystemViewportRef = React.useRef(null);
+    const previousRenderableSolarBodiesCountRef = React.useRef(0);
 
     const projectionSettings = React.useMemo(() => {
         const mapSettings = celestialState.mapSettings || {};
@@ -342,7 +348,10 @@ const CelestialMainLayout = () => {
             socket,
             payload: {
                 ...sceneRequestPayload,
-                allow_network_fetch: false,
+                // Initial page load must fill missing Horizons-backed system bodies
+                // for the selected projection; cache-only loads can leave planets
+                // present only as non-renderable metadata rows.
+                allow_network_fetch: true,
             },
         }));
     }, [socket, dispatch, sceneRequestPayload]);
@@ -370,6 +379,13 @@ const CelestialMainLayout = () => {
 
     const handleRefreshCelestial = React.useCallback(async () => {
         if (!socket) return;
+        await dispatch(fetchSolarSystemScene({
+            socket,
+            payload: {
+                ...sceneRequestPayload,
+                allow_network_fetch: true,
+            },
+        }));
         await dispatch(refreshMonitoredCelestialNow({ socket, payload: sceneRequestPayload }));
         await dispatch(fetchMonitoredCelestial({ socket }));
     }, [socket, dispatch, sceneRequestPayload]);
@@ -457,6 +473,29 @@ const CelestialMainLayout = () => {
         : inferredCounts.moons;
     const trackedCount = combinedScene?.celestial?.length || 0;
     const hasSolarScene = (planetsCount + moonsCount) > 0;
+    const solarCacheMissingCount = Number(combinedScene?.meta?.solar_system?.cache?.missing_count || 0);
+    const renderableSolarBodiesCount = React.useMemo(
+        () => solarBodies.filter((body) => hasFiniteXYZ(body?.position_xyz_au)).length,
+        [solarBodies],
+    );
+    const solarSystemDataError = React.useMemo(() => {
+        if (solarCacheMissingCount <= 0 || renderableSolarBodiesCount > 0) return '';
+        return tCelestial('main_layout.solar_system_horizons_missing', {
+            count: solarCacheMissingCount,
+            defaultValue: `Horizons vectors unavailable for ${solarCacheMissingCount} solar-system bodies.`,
+        });
+    }, [solarCacheMissingCount, renderableSolarBodiesCount, tCelestial]);
+    React.useEffect(() => {
+        const previousCount = previousRenderableSolarBodiesCountRef.current;
+        previousRenderableSolarBodiesCountRef.current = renderableSolarBodiesCount;
+        if (viewMode !== VIEW_MODE_SOLAR_SYSTEM) return;
+        if (previousCount !== 0 || renderableSolarBodiesCount <= 0) return;
+
+        // A persisted viewport can point at an old target-only scene. When the
+        // system layer first becomes renderable, fit once so planets/moons are
+        // actually visible without requiring a manual toolbar action.
+        setFitAllSignal((value) => value + 1);
+    }, [renderableSolarBodiesCount, viewMode]);
     const solarLoading = Boolean(celestialState?.solarLoading);
     const tracksLoading = Boolean(celestialState?.tracksLoading);
     const solarSystemLoading = solarLoading || tracksLoading;
@@ -524,6 +563,17 @@ const CelestialMainLayout = () => {
         // The scene-manager stream is cache-only. When the user changes the
         // projection window, explicitly fill that window so the table/timeline
         // do not stay on the previously cached span.
+        await dispatch(
+            fetchSolarSystemScene({
+                socket,
+                payload: {
+                    past_hours: parseNonNegativeNumber(nextSettings.pastHours, DEFAULT_PAST_HOURS),
+                    future_hours: parsePositiveNumber(nextSettings.futureHours, DEFAULT_FUTURE_HOURS),
+                    step_minutes: parsePositiveNumber(nextSettings.stepMinutes, DEFAULT_STEP_MINUTES),
+                    allow_network_fetch: true,
+                },
+            }),
+        );
         await dispatch(
             refreshMonitoredCelestialNow({
                 socket,
@@ -614,9 +664,9 @@ const CelestialMainLayout = () => {
                     />
                 ) : null}
                 <Box sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
-                    {celestialState.error && !hasSolarScene ? (
+                    {(celestialState.error && !hasSolarScene) || solarSystemDataError ? (
                         <Typography variant="body2" color="error" sx={{ p: 1 }}>
-                            {celestialState.error}
+                            {celestialState.error || solarSystemDataError}
                         </Typography>
                     ) : (
                         <Box sx={{ height: '100%', minHeight: 220, position: 'relative' }}>

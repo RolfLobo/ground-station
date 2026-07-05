@@ -159,6 +159,7 @@ def _build_body_target_payload(
     catalog_entry = _BODY_CATALOG_BY_ID.get(normalized_body_id) or {}
     body_class = str(catalog_entry.get("body_type") or "").strip().lower() or None
     parent_body_id = str(catalog_entry.get("parent_body_id") or "").strip().lower() or None
+    scene_role = str(catalog_entry.get("scene_role") or "").strip().lower() or None
     horizons_command = str(BODY_HORIZONS_COMMANDS.get(normalized_body_id) or "").strip()
     display_name = str(name or catalog_entry.get("name") or normalized_body_id).strip()
 
@@ -175,7 +176,8 @@ def _build_body_target_payload(
         "color": color,
         "body_class": body_class,
         "parent_body_id": parent_body_id,
-        "always_in_scene": normalized_body_id != "sun",
+        "scene_role": scene_role,
+        "always_in_scene": scene_role == "system",
     }
 
 
@@ -258,6 +260,10 @@ def _build_builtin_body_targets() -> List[Dict[str, Any]]:
     for entry in list_celestial_bodies():
         body_id = str(entry.get("body_id") or "").strip().lower()
         if not body_id or body_id == "sun":
+            continue
+        # Scene membership is explicit catalog metadata. This keeps selectable
+        # catalog bodies from automatically becoming background scene load.
+        if str(entry.get("scene_role") or "").strip().lower() != "system":
             continue
 
         body_payload = _build_body_target_payload(
@@ -848,6 +854,7 @@ async def _build_horizons_solar_system_bodies(
                     "name": str(target.get("name") or body_id),
                     "body_type": target.get("body_class") or "body",
                     "parent_id": target.get("parent_body_id"),
+                    "scene_role": target.get("scene_role"),
                     "position_xyz_au": None,
                     "velocity_xyz_au_per_day": None,
                     "orbit_samples_xyz_au": [],
@@ -865,6 +872,7 @@ async def _build_horizons_solar_system_bodies(
             "name": str(target.get("name") or body_id),
             "body_type": target.get("body_class") or "body",
             "parent_id": target.get("parent_body_id"),
+            "scene_role": target.get("scene_role"),
             "position_xyz_au": payload.get("position_xyz_au"),
             "velocity_xyz_au_per_day": payload.get("velocity_xyz_au_per_day"),
             "orbit_samples_xyz_au": payload.get("orbit_samples_xyz_au") or [],
@@ -1476,6 +1484,33 @@ async def _load_vectors_from_db(
     return row if isinstance(row, dict) else None
 
 
+async def _load_latest_vectors_from_db(
+    target_key: str,
+    past_hours: int,
+    future_hours: int,
+    step_minutes: int,
+    frame: str = DEFAULT_FRAME,
+    center: str = DEFAULT_CENTER,
+    valid_only: bool = True,
+) -> Optional[Dict[str, Any]]:
+    async with AsyncSessionLocal() as dbsession:
+        result = await crud_celestial_vectors.fetch_latest_celestial_vector_snapshot(
+            dbsession,
+            target_id=target_key,
+            past_hours=past_hours,
+            future_hours=future_hours,
+            step_minutes=step_minutes,
+            frame=frame,
+            center=center,
+            valid_only=valid_only,
+            as_of=datetime.now(timezone.utc),
+        )
+    if not result.get("success"):
+        return None
+    row = result.get("data")
+    return row if isinstance(row, dict) else None
+
+
 async def _store_vectors_in_db(
     target_key: str,
     epoch_bucket_utc: datetime,
@@ -1554,14 +1589,70 @@ async def _get_vectors_snapshot(
             valid_only=True,
         )
         if cached and isinstance(cached.get("payload"), dict):
+            payload = dict(cached["payload"])
+            _refresh_payload_dynamics_at_epoch(
+                payload=payload,
+                epoch=epoch,
+                past_hours=past_hours,
+                future_hours=future_hours,
+            )
             return {
-                "payload": dict(cached["payload"]),
+                "payload": payload,
                 "cache": "db-hit",
+                "stale": False,
+                "error": None,
+            }
+        # The scene loop runs more frequently than Horizons fetches. If the
+        # exact epoch bucket is missing, use the newest cached snapshot for the
+        # same projection and recompute the current vector from its samples.
+        latest_cached = await _load_latest_vectors_from_db(
+            target_key=normalized_target_key,
+            past_hours=past_hours,
+            future_hours=future_hours,
+            step_minutes=step_minutes,
+            frame=DEFAULT_FRAME,
+            center=DEFAULT_CENTER,
+            valid_only=True,
+        )
+        if latest_cached and isinstance(latest_cached.get("payload"), dict):
+            payload = dict(latest_cached["payload"])
+            _refresh_payload_dynamics_at_epoch(
+                payload=payload,
+                epoch=epoch,
+                past_hours=past_hours,
+                future_hours=future_hours,
+            )
+            return {
+                "payload": payload,
+                "cache": "db-latest-hit",
                 "stale": False,
                 "error": None,
             }
 
     if not allow_network_fetch:
+        stale_cached = await _load_latest_vectors_from_db(
+            target_key=normalized_target_key,
+            past_hours=past_hours,
+            future_hours=future_hours,
+            step_minutes=step_minutes,
+            frame=DEFAULT_FRAME,
+            center=DEFAULT_CENTER,
+            valid_only=False,
+        )
+        if stale_cached and isinstance(stale_cached.get("payload"), dict):
+            payload = dict(stale_cached["payload"])
+            _refresh_payload_dynamics_at_epoch(
+                payload=payload,
+                epoch=epoch,
+                past_hours=past_hours,
+                future_hours=future_hours,
+            )
+            return {
+                "payload": payload,
+                "cache": "db-stale-hit",
+                "stale": True,
+                "error": None,
+            }
         return {
             "payload": None,
             "cache": "cache-only-miss",

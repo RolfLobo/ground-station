@@ -90,15 +90,18 @@ class JsonField(TypeDecorator):
         # Some dialects/DB drivers already return JSON columns as Python
         # objects (dict/list). Only decode when we receive a JSON string.
         if isinstance(value, (str, bytes, bytearray)):
-            return json.loads(value)
+            try:
+                return json.loads(value)
+            except (TypeError, ValueError):
+                return value
         return value
 
     def process_bind_param(self, value, dialect):
         """
-        When writing to DB, serialize Python object to JSON string.
+        When writing to DB, pass Python objects through to SQLAlchemy's JSON
+        serializer. Returning json.dumps(value) here double-encodes arrays on
+        SQLite, which makes cached vector rows unreadable as scene arrays.
         """
-        if value is not None:
-            return json.dumps(value)
         return value
 
 

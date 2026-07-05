@@ -238,9 +238,53 @@ _BODY_CATALOG: List[Dict[str, object]] = [
     },
 ]
 
+# Bodies in this set are not just searchable targets; they are first-class
+# solar-system scene members that the Scene Manager keeps warm from Horizons.
+_SYSTEM_SCENE_BODY_IDS = {
+    "mercury",
+    "venus",
+    "earth",
+    "moon",
+    "mars",
+    "ceres",
+    "jupiter",
+    "io",
+    "europa",
+    "ganymede",
+    "callisto",
+    "saturn",
+    "enceladus",
+    "rhea",
+    "titan",
+    "iapetus",
+    "uranus",
+    "miranda",
+    "ariel",
+    "umbriel",
+    "titania",
+    "oberon",
+    "neptune",
+    "triton",
+    "nereid",
+    "proteus",
+    "pluto",
+    "charon",
+    "haumea",
+    "makemake",
+    "eris",
+}
+
 _BODY_BY_ID: Dict[str, Dict[str, object]] = {
     str(entry["body_id"]): entry for entry in _BODY_CATALOG
 }
+
+
+def _with_scene_metadata(entry: Dict[str, object]) -> Dict[str, object]:
+    row = dict(entry)
+    body_id = str(row.get("body_id") or "").strip().lower()
+    if body_id in _SYSTEM_SCENE_BODY_IDS:
+        row["scene_role"] = "system"
+    return row
 
 
 def list_celestial_bodies() -> List[Dict[str, object]]:
@@ -254,7 +298,7 @@ def list_celestial_bodies() -> List[Dict[str, object]]:
             return int(value)
         return 9999
 
-    return [dict(entry) for entry in sorted(_BODY_CATALOG, key=sort_key)]
+    return [_with_scene_metadata(entry) for entry in sorted(_BODY_CATALOG, key=sort_key)]
 
 
 def get_celestial_body(body_id: str) -> Optional[Dict[str, object]]:
@@ -263,7 +307,7 @@ def get_celestial_body(body_id: str) -> Optional[Dict[str, object]]:
     if not key:
         return None
     entry = _BODY_BY_ID.get(key)
-    return dict(entry) if entry else None
+    return _with_scene_metadata(entry) if entry else None
 
 
 def search_celestial_bodies(query: str, limit: int = 20) -> List[Dict[str, object]]:

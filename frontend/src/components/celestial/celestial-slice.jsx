@@ -174,6 +174,23 @@ export const setCelestialMapSettings = createAsyncThunk(
     }
 );
 
+const normalizeScenePayload = (payload) => {
+    if (!payload || typeof payload !== 'object') return payload;
+    const nested = payload.data;
+    if (
+        nested
+        && typeof nested === 'object'
+        && (
+            Array.isArray(nested.planets)
+            || Array.isArray(nested.celestial)
+            || Array.isArray(nested.celestial_passes)
+        )
+    ) {
+        return nested;
+    }
+    return payload;
+};
+
 const celestialSlice = createSlice({
     name: 'celestial',
     initialState: {
@@ -192,19 +209,19 @@ const celestialSlice = createSlice({
     },
     reducers: {
         setCelestialSceneLive: (state, action) => {
-            const payload = action.payload || {};
+            const payload = normalizeScenePayload(action.payload) || {};
             state.solarScene = payload;
             state.celestialTracks = payload;
             state.error = null;
             state.lastUpdated = new Date().toISOString();
         },
         setSolarSceneLive: (state, action) => {
-            state.solarScene = action.payload;
+            state.solarScene = normalizeScenePayload(action.payload);
             state.error = null;
             state.lastUpdated = new Date().toISOString();
         },
         setCelestialTracksLive: (state, action) => {
-            state.celestialTracks = action.payload;
+            state.celestialTracks = normalizeScenePayload(action.payload);
             state.error = null;
             state.lastUpdated = new Date().toISOString();
         },
@@ -296,8 +313,9 @@ const celestialSlice = createSlice({
             .addCase(fetchCelestialScene.fulfilled, (state, action) => {
                 state.solarLoading = false;
                 state.tracksLoading = false;
-                state.solarScene = action.payload;
-                state.celestialTracks = action.payload;
+                const payload = normalizeScenePayload(action.payload);
+                state.solarScene = payload;
+                state.celestialTracks = payload;
                 state.lastUpdated = new Date().toISOString();
             })
             .addCase(fetchCelestialScene.rejected, (state, action) => {
@@ -311,7 +329,7 @@ const celestialSlice = createSlice({
             })
             .addCase(fetchSolarSystemScene.fulfilled, (state, action) => {
                 state.solarLoading = false;
-                state.solarScene = action.payload;
+                state.solarScene = normalizeScenePayload(action.payload);
                 state.lastUpdated = new Date().toISOString();
             })
             .addCase(fetchSolarSystemScene.rejected, (state, action) => {
@@ -324,7 +342,7 @@ const celestialSlice = createSlice({
             })
             .addCase(fetchCelestialTracks.fulfilled, (state, action) => {
                 state.tracksLoading = false;
-                state.celestialTracks = action.payload;
+                state.celestialTracks = normalizeScenePayload(action.payload);
                 state.tracksProgress = null;
                 state.lastUpdated = new Date().toISOString();
             })
@@ -340,8 +358,9 @@ const celestialSlice = createSlice({
             .addCase(refreshCelestialScene.fulfilled, (state, action) => {
                 state.solarLoading = false;
                 state.tracksLoading = false;
-                state.solarScene = action.payload;
-                state.celestialTracks = action.payload;
+                const payload = normalizeScenePayload(action.payload);
+                state.solarScene = payload;
+                state.celestialTracks = payload;
                 state.lastUpdated = new Date().toISOString();
             })
             .addCase(refreshCelestialScene.rejected, (state, action) => {
@@ -358,7 +377,7 @@ const celestialSlice = createSlice({
                 const requestedIds = action?.meta?.arg?.ids;
                 const isPartialRefresh = Array.isArray(requestedIds) && requestedIds.length > 0;
                 if (isPartialRefresh) {
-                    const payload = action.payload || {};
+                    const payload = normalizeScenePayload(action.payload) || {};
                     const incomingRows = Array.isArray(payload?.celestial) ? payload.celestial : [];
                     const currentTracks = state.celestialTracks ? { ...state.celestialTracks } : {};
                     const existingRows = Array.isArray(currentTracks?.celestial)
@@ -408,7 +427,7 @@ const celestialSlice = createSlice({
                         celestial: existingRows,
                     };
                 } else {
-                    state.celestialTracks = action.payload;
+                    state.celestialTracks = normalizeScenePayload(action.payload);
                 }
                 state.tracksProgress = null;
                 state.lastUpdated = new Date().toISOString();
