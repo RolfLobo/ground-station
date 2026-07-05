@@ -45,6 +45,7 @@ export default function WaterfallViewer({
 }) {
     const containerRef = useRef(null);
     const activePointerIdRef = useRef(null);
+    const isDraggingRef = useRef(false);
     const lastPointerXRef = useRef(0);
     const scaleRef = useRef(1);
     const positionXRef = useRef(0);
@@ -242,12 +243,16 @@ export default function WaterfallViewer({
         (event) => {
             if (!src) return;
             if (event.pointerType === 'mouse' && event.button !== 0) return;
+            if (event.pointerType !== 'touch' && event.cancelable) {
+                event.preventDefault();
+            }
             event.currentTarget.setPointerCapture(event.pointerId);
             activePointerIdRef.current = event.pointerId;
             lastPointerXRef.current = event.clientX;
             setCursorInfo(buildCursorInfo(event.clientX, event.clientY));
             setShowHint(false);
             if (scaleRef.current > 1) {
+                isDraggingRef.current = true;
                 setIsDragging(true);
             }
         },
@@ -258,7 +263,11 @@ export default function WaterfallViewer({
         (event) => {
             if (!src) return;
 
-            if (activePointerIdRef.current === event.pointerId && isDragging) {
+            if (activePointerIdRef.current === event.pointerId && isDraggingRef.current) {
+                // Browser image/selection drags can steal the gesture if a frame stalls mid-pan.
+                if (event.cancelable) {
+                    event.preventDefault();
+                }
                 const deltaX = event.clientX - lastPointerXRef.current;
                 lastPointerXRef.current = event.clientX;
                 panOnXAxisOnly(deltaX);
@@ -266,17 +275,23 @@ export default function WaterfallViewer({
 
             setCursorInfo(buildCursorInfo(event.clientX, event.clientY));
         },
-        [buildCursorInfo, isDragging, panOnXAxisOnly, src]
+        [buildCursorInfo, panOnXAxisOnly, src]
     );
 
     const handlePointerUp = useCallback((event) => {
         if (activePointerIdRef.current === event.pointerId) {
             activePointerIdRef.current = null;
+            isDraggingRef.current = false;
             setIsDragging(false);
         }
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
         }
+    }, []);
+
+    const handleDragStart = useCallback((event) => {
+        event.preventDefault();
+        event.stopPropagation();
     }, []);
 
     const visibleFrequencyRange = useMemo(() => {
@@ -338,6 +353,7 @@ export default function WaterfallViewer({
 
     useEffect(() => {
         applyTransform(1, 0);
+        isDraggingRef.current = false;
         setIsDragging(false);
         setCursorInfo(null);
         setShowHint(true);
@@ -353,12 +369,15 @@ export default function WaterfallViewer({
 
     return (
         <Box
+            data-testid="waterfall-viewer"
             ref={containerRef}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
             onPointerLeave={() => setCursorInfo(null)}
+            onDragStart={handleDragStart}
+            draggable={false}
             sx={{
                 position: 'relative',
                 overflow: 'hidden',
@@ -368,15 +387,22 @@ export default function WaterfallViewer({
                 bgcolor: '#05070b',
                 touchAction: 'pan-y',
                 cursor: containerCursor,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                WebkitUserDrag: 'none',
                 ...containerSx,
             }}
         >
             <Box
+                draggable={false}
                 sx={{
                     position: 'absolute',
                     inset: 0,
                     transformOrigin: 'left center',
                     transform: `translateX(${positionX}px) scaleX(${scaleX})`,
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    WebkitUserDrag: 'none',
                 }}
             >
                 <Box sx={{ height: `${SCALE_STRIP_HEIGHT}px`, width: '100%' }}>
@@ -392,6 +418,7 @@ export default function WaterfallViewer({
                     src={src}
                     alt={alt}
                     draggable={false}
+                    onDragStart={handleDragStart}
                     style={{
                         width: '100%',
                         height: `calc(100% - ${SCALE_STRIP_HEIGHT}px)`,
@@ -399,6 +426,8 @@ export default function WaterfallViewer({
                         objectFit: 'fill',
                         imageRendering: 'auto',
                         userSelect: 'none',
+                        WebkitUserSelect: 'none',
+                        WebkitUserDrag: 'none',
                         pointerEvents: 'none',
                     }}
                 />
