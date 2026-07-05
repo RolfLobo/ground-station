@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DataGrid, gridClasses } from '@mui/x-data-grid';
 import { alpha, styled } from '@mui/material/styles';
 import {
@@ -40,6 +40,12 @@ import { useTargetRotatorSelectionDialog } from '../target/use-target-rotator-se
 import { setRotator, setTrackerId, setTrackingStateInBackend } from '../target/target-slice.jsx';
 import { toast } from '../../utils/toast-with-timestamp.jsx';
 import TransmittersDialog from '../satellites/transmitters-dialog.jsx';
+import ElevationDisplay from '../common/elevation-display.jsx';
+import {
+    calculateElevationTrend,
+    pruneElevationHistory,
+    updateElevationHistory,
+} from '../../utils/elevationtrend.js';
 
 const AU_IN_KM = 149597870.7;
 const SECONDS_PER_DAY = 86400;
@@ -352,6 +358,7 @@ const MonitoredCelestialGridIsland = ({
     const [rowContextMenu, setRowContextMenu] = useState(null);
     const [transmittersDialogOpen, setTransmittersDialogOpen] = useState(false);
     const [transmittersDialogData, setTransmittersDialogData] = useState(null);
+    const elevationHistoryByTargetKeyRef = useRef({});
     const rowSelectionModel = useMemo(() => toRowSelectionModel(selectedIds), [selectedIds]);
     const currentlyTrackedTargetKey = useMemo(() => buildTrackingTargetKey(trackingState), [trackingState]);
 
@@ -369,6 +376,28 @@ const MonitoredCelestialGridIsland = ({
         }, {});
     }, [tracks]);
 
+    const elevationTrendByTargetKey = useMemo(() => {
+        const historyByTargetKey = elevationHistoryByTargetKeyRef.current;
+        const nextTrendByTargetKey = {};
+        const activeTargetKeys = new Set();
+        const entries = Array.isArray(tracks) ? tracks : [];
+
+        entries.forEach((track) => {
+            const targetKey = buildTargetKeyFromCelestialRow(track);
+            if (!targetKey) return;
+            activeTargetKeys.add(targetKey);
+
+            const elevationDeg = Number(track?.sky_position?.el_deg);
+            if (!Number.isFinite(elevationDeg)) return;
+
+            const history = updateElevationHistory(historyByTargetKey, targetKey, elevationDeg);
+            nextTrendByTargetKey[targetKey] = calculateElevationTrend(history, elevationDeg);
+        });
+
+        pruneElevationHistory(historyByTargetKey, activeTargetKeys);
+        return nextTrendByTargetKey;
+    }, [tracks]);
+
     const enrichedRows = useMemo(
         () =>
             (rows || []).map((row) => {
@@ -384,6 +413,7 @@ const MonitoredCelestialGridIsland = ({
                 const rawAzimuthDeg = Number(track?.sky_position?.az_deg);
                 const elevationDeg = Number.isFinite(rawElevationDeg) ? rawElevationDeg : null;
                 const azimuthDeg = Number.isFinite(rawAzimuthDeg) ? rawAzimuthDeg : null;
+                const elevationTrend = elevationTrendByTargetKey[targetKey] || {};
                 const visibility = getVisibilityState(track?.visibility?.visible, rawElevationDeg);
                 const targetIdentifier = targetType === 'body'
                     ? String(row.bodyId || row.body_id || row.command || '').trim().toLowerCase()
@@ -404,6 +434,8 @@ const MonitoredCelestialGridIsland = ({
                     sourceMode: row.sourceMode || row.source_mode || (targetType === 'body' ? 'static-body' : '-'),
                     visibility,
                     elevationDeg,
+                    elevationTrend: elevationTrend.trend || null,
+                    elevationRate: Number.isFinite(elevationTrend.elRate) ? elevationTrend.elRate : null,
                     azimuthDeg,
                     distanceFromSunAu: distanceAu,
                     speedKmS,
@@ -415,7 +447,7 @@ const MonitoredCelestialGridIsland = ({
                     sampleCount,
                 };
             }),
-        [rows, trackByTargetKey, nowMs, tCelestial],
+        [rows, trackByTargetKey, elevationTrendByTargetKey, nowMs, tCelestial],
     );
     const applyTargetSelection = useCallback((rawId) => {
         if (rawId == null) return;
@@ -515,13 +547,19 @@ const MonitoredCelestialGridIsland = ({
             { field: 'sourceMode', headerName: tCelestial('monitored.columns.source_mode'), minWidth: 120, flex: 0.8 },
             {
                 field: 'elevationDeg',
-                width: 80,
-                minWidth: 80,
+                width: 92,
+                minWidth: 92,
                 headerName: tCelestial('monitored.columns.elevation'),
                 type: 'number',
                 align: 'center',
                 headerAlign: 'center',
-                valueFormatter: (value) => formatAngle(value, 2),
+                renderCell: (params) => (
+                    <ElevationDisplay
+                        elevation={params.row?.elevationDeg}
+                        trend={params.row?.elevationTrend}
+                        elRate={params.row?.elevationRate}
+                    />
+                ),
             },
             {
                 field: 'azimuthDeg',

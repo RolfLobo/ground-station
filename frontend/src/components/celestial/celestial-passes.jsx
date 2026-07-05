@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Box,
     Button,
@@ -22,7 +22,16 @@ import {
     useTheme,
 } from '@mui/material';
 import { alpha, darken, lighten, styled } from '@mui/material/styles';
-import { DataGrid, gridClasses } from '@mui/x-data-grid';
+import {
+    DataGrid,
+    GridPagination,
+    gridClasses,
+    gridPageCountSelector,
+    gridPageSelector,
+    gridRowSelectionCountSelector,
+    useGridApiContext,
+    useGridSelector,
+} from '@mui/x-data-grid';
 import AccessTimeFilledIcon from '@mui/icons-material/AccessTimeFilled';
 import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
@@ -48,6 +57,12 @@ import { useTargetRotatorSelectionDialog } from '../target/use-target-rotator-se
 import { setRotator, setTrackerId, setTrackingStateInBackend } from '../target/target-slice.jsx';
 import { toast } from '../../utils/toast-with-timestamp.jsx';
 import TransmittersDialog from '../satellites/transmitters-dialog.jsx';
+import ElevationDisplay from '../common/elevation-display.jsx';
+import {
+    calculateElevationTrend,
+    pruneElevationHistory,
+    updateElevationHistory,
+} from '../../utils/elevationtrend.js';
 
 const getPassBackgroundColor = (color, theme, coefficient) => ({
     backgroundColor: darken(color, coefficient),
@@ -124,6 +139,103 @@ const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
         paddingBottom: 0,
     },
 }));
+
+const CustomPagination = () => {
+    const apiRef = useGridApiContext();
+    const page = useGridSelector(apiRef, gridPageSelector);
+    const pageCount = useGridSelector(apiRef, gridPageCountSelector);
+    const selectedRowCount = useGridSelector(apiRef, gridRowSelectionCountSelector);
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+    const isMedium = useMediaQuery(theme.breakpoints.down('lg'));
+
+    const handlePageChange = (newPage) => {
+        apiRef.current.setPage(newPage);
+    };
+
+    const getPageNumbers = () => {
+        const maxButtons = isMobile ? 5 : isTablet ? 8 : 12;
+        const pages = [];
+
+        if (pageCount <= maxButtons) {
+            for (let index = 0; index < pageCount; index += 1) {
+                pages.push(index);
+            }
+            return pages;
+        }
+
+        const halfWindow = Math.floor(maxButtons / 2);
+        let start = Math.max(0, page - halfWindow);
+        let end = Math.min(pageCount - 1, start + maxButtons - 1);
+        if (end - start < maxButtons - 1) {
+            start = Math.max(0, end - maxButtons + 1);
+        }
+        for (let index = start; index <= end; index += 1) {
+            pages.push(index);
+        }
+        return pages;
+    };
+
+    const pageNumbers = getPageNumbers();
+
+    return (
+        <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            width: '100%',
+            p: 1,
+            gap: 2,
+            height: '52px',
+            minHeight: '52px',
+            maxHeight: '52px',
+            position: 'relative',
+            overflow: 'hidden',
+        }}>
+            <Box sx={{ flex: '1 1 0', display: 'flex', justifyContent: 'flex-start', minWidth: 0, alignItems: 'center', height: '100%' }}>
+                {selectedRowCount > 0 && (
+                    <Typography variant="body2" sx={{ whiteSpace: 'nowrap', lineHeight: 1 }}>
+                        {selectedRowCount} pass{selectedRowCount !== 1 ? 'es' : ''} selected
+                    </Typography>
+                )}
+            </Box>
+            <Box sx={{
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: 0.5,
+                flexWrap: 'nowrap',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                alignItems: 'center',
+                height: '100%',
+            }}>
+                {pageNumbers.map((pageNum) => (
+                    <Button
+                        key={pageNum}
+                        size="small"
+                        variant={page === pageNum ? 'contained' : 'outlined'}
+                        onClick={() => handlePageChange(pageNum)}
+                        sx={{
+                            minWidth: isMobile ? '32px' : '40px',
+                            px: isMobile ? 0.5 : 1,
+                            py: 0.5,
+                            height: '32px',
+                        }}
+                    >
+                        {pageNum + 1}
+                    </Button>
+                ))}
+            </Box>
+            <Box sx={{ flex: '1 1 0', display: isMedium ? 'none' : 'flex', justifyContent: 'flex-end', minWidth: 0, alignItems: 'center', height: '100%', overflow: 'hidden' }}>
+                <Box sx={{ transform: 'scale(0.9)', transformOrigin: 'right center' }}>
+                    <GridPagination />
+                </Box>
+            </Box>
+        </Box>
+    );
+};
 
 const getPassStatus = (row, now) => {
     const startMs = Number(row?.eventStartMs);
@@ -276,6 +388,7 @@ const PassesTableSettingsDialog = ({ open, onClose }) => {
         { name: 'name', label: t('passes.columns.name'), category: 'basic', alwaysVisible: true },
         { name: 'targetType', label: t('passes.columns.type'), category: 'basic' },
         { name: 'peakElevationDeg', label: t('passes.columns.peak_elevation'), category: 'metrics' },
+        { name: 'currentElevationDeg', label: t('passes.columns.current_elevation', { defaultValue: 'Current Elevation' }), category: 'metrics' },
         { name: 'progress', label: t('passes.columns.progress'), category: 'basic' },
         { name: 'duration', label: t('passes.columns.duration'), category: 'basic' },
         { name: 'eventStart', label: t('passes.columns.start'), category: 'time' },
@@ -397,6 +510,7 @@ const CelestialPasses = ({
     const [rowContextMenu, setRowContextMenu] = useState(null);
     const [transmittersDialogOpen, setTransmittersDialogOpen] = useState(false);
     const [transmittersDialogData, setTransmittersDialogData] = useState(null);
+    const elevationHistoryByTargetKeyRef = useRef({});
     const columnVisibility = useSelector((state) => state.celestial?.passesTableColumnVisibility || {});
     const pageSize = useSelector((state) => state.celestial?.passesTablePageSize || 10);
     const sortModel = useSelector((state) => state.celestial?.passesTableSortModel || []);
@@ -415,6 +529,28 @@ const CelestialPasses = ({
             if (key) acc[key] = track;
             return acc;
         }, {});
+    }, [tracks]);
+
+    const elevationTrendByTargetKey = useMemo(() => {
+        const historyByTargetKey = elevationHistoryByTargetKeyRef.current;
+        const nextTrendByTargetKey = {};
+        const activeTargetKeys = new Set();
+        const entries = Array.isArray(tracks) ? tracks : [];
+
+        entries.forEach((track) => {
+            const targetKey = String(track?.target_key || track?.targetKey || '').trim();
+            if (!targetKey) return;
+            activeTargetKeys.add(targetKey);
+
+            const elevationDeg = Number(track?.sky_position?.el_deg);
+            if (!Number.isFinite(elevationDeg)) return;
+
+            const history = updateElevationHistory(historyByTargetKey, targetKey, elevationDeg);
+            nextTrendByTargetKey[targetKey] = calculateElevationTrend(history, elevationDeg);
+        });
+
+        pruneElevationHistory(historyByTargetKey, activeTargetKeys);
+        return nextTrendByTargetKey;
     }, [tracks]);
 
     const rows = useMemo(() => (passes || []).map((pass) => {
@@ -448,6 +584,13 @@ const CelestialPasses = ({
                 || derivedIdentifierFromKey
                 || ''
             ).trim();
+        const rawCurrentElevationDeg = Number(track?.sky_position?.el_deg);
+        const currentElevationDeg = Number.isFinite(rawCurrentElevationDeg) ? rawCurrentElevationDeg : null;
+        const elevationTrend = elevationTrendByTargetKey[normalizedTargetKey] || {};
+        const peakTimeMs = new Date(pass.peak_time).getTime();
+        const timeToPeakSeconds = Number.isFinite(peakTimeMs) && peakTimeMs > nowMs
+            ? Math.floor((peakTimeMs - nowMs) / 1000)
+            : null;
         return {
             id: pass.id || `${pass.target_key || 'target'}_${pass.event_start || ''}`,
             status,
@@ -463,6 +606,10 @@ const CelestialPasses = ({
                 ? pass.transmitters
                 : (Array.isArray(track?.transmitters) ? track.transmitters : []),
             peakElevationDeg: Number(pass.peak_elevation_deg),
+            currentElevationDeg,
+            elevationTrend: elevationTrend.trend || null,
+            elevationRate: Number.isFinite(elevationTrend.elRate) ? elevationTrend.elRate : null,
+            timeToPeakSeconds,
             eventStart: pass.event_start,
             eventEnd: pass.event_end,
             event_start: pass.event_start,
@@ -478,7 +625,7 @@ const CelestialPasses = ({
             stale: pass.stale ? tCelestial('common.yes') : tCelestial('common.no'),
             source: pass.source || '-',
         };
-    }), [passes, nowMs, trackByTargetKey, tCelestial]);
+    }), [passes, nowMs, trackByTargetKey, elevationTrendByTargetKey, tCelestial]);
 
     const filteredRows = useMemo(() => {
         if (quickFilterPreset === 'live') {
@@ -507,6 +654,13 @@ const CelestialPasses = ({
             setSelectedIds([]);
         }
     }, [filteredRows, selectedIds]);
+
+    const handlePaginationModelChange = useCallback((model) => {
+        setPage(model.page);
+        if (model.pageSize !== pageSize) {
+            dispatch(setCelestialPassesTablePageSize(model.pageSize));
+        }
+    }, [dispatch, pageSize]);
 
     const columns = useMemo(() => [
         {
@@ -570,6 +724,28 @@ const CelestialPasses = ({
                 if (value < 10.0) return 'passes-cell-warning';
                 if (value > 45.0) return 'passes-cell-success';
                 return '';
+            },
+        },
+        {
+            field: 'currentElevationDeg',
+            headerName: tCelestial('passes.columns.current_elevation', { defaultValue: 'Current Elevation' }),
+            width: 120,
+            minWidth: 120,
+            align: 'center',
+            headerAlign: 'center',
+            sortable: false,
+            renderCell: (params) => {
+                if (params.row?.status !== 'live') {
+                    return <span>-</span>;
+                }
+                return (
+                    <ElevationDisplay
+                        elevation={params.row?.currentElevationDeg}
+                        trend={params.row?.elevationTrend}
+                        elRate={params.row?.elevationRate}
+                        timeToMaxEl={params.row?.timeToPeakSeconds}
+                    />
+                );
             },
         },
         {
@@ -1021,10 +1197,7 @@ const CelestialPasses = ({
                     disableMultipleRowSelection
                     pageSizeOptions={[5, 10, 15, 20, 25]}
                     paginationModel={{ pageSize, page }}
-                    onPaginationModelChange={(model) => {
-                        setPage(model.page);
-                        dispatch(setCelestialPassesTablePageSize(model.pageSize));
-                    }}
+                    onPaginationModelChange={handlePaginationModelChange}
                     rowSelectionModel={rowSelectionModel}
                     onRowSelectionModelChange={(model) => {
                         const ids = toSelectedIds(model);
@@ -1041,6 +1214,9 @@ const CelestialPasses = ({
                     columnVisibilityModel={columnVisibility}
                     onColumnVisibilityModelChange={(model) => dispatch(setCelestialPassesTableColumnVisibility(model))}
                     getRowClassName={getRowClassName}
+                    slots={{
+                        pagination: CustomPagination,
+                    }}
                     density="compact"
                     sx={{
                         border: 0,

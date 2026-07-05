@@ -24,6 +24,7 @@ export const CELESTIAL_PASSES_DEFAULT_COLUMN_VISIBILITY = {
     name: true,
     targetType: true,
     peakElevationDeg: true,
+    currentElevationDeg: true,
     progress: true,
     duration: true,
     eventStart: true,
