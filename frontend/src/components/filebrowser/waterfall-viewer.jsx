@@ -46,6 +46,8 @@ export default function WaterfallViewer({
     hintDurationMs = 2800,
 }) {
     const containerRef = useRef(null);
+    const canvasRef = useRef(null);
+    const sourceImageRef = useRef(null);
     const activePointerIdRef = useRef(null);
     const isDraggingRef = useRef(false);
     const lastPointerXRef = useRef(0);
@@ -66,6 +68,7 @@ export default function WaterfallViewer({
     const [showHint, setShowHint] = useState(true);
     const [cursorInfo, setCursorInfo] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+    const [sourceImageSize, setSourceImageSize] = useState({ width: 0, height: 0 });
     const [transformTick, setTransformTick] = useState(0);
 
     const formatFrequencyValue = useCallback(
@@ -130,16 +133,32 @@ export default function WaterfallViewer({
 
     const applyTransform = useCallback((nextScale, nextPositionX, options = {}) => {
         if (options.trackInteraction) {
-            // Defer frequency-scale measurement while the transformed canvas is still moving.
+            // Defer frequency-scale measurement while zoom/pan interaction is still active.
             markTransformInteraction();
         }
         scaleRef.current = nextScale;
         positionXRef.current = nextPositionX;
         setScaleX(nextScale);
         setPositionX(nextPositionX);
-        // Keep frequency scale labels in sync with the transformed (zoomed) width.
+        // Trigger a frequency-scale redraw after each zoom/pan update.
         setTransformTick((tick) => tick + 1);
     }, [markTransformInteraction]);
+
+    const getVisibleXNormRange = useCallback((currentPositionX, currentScale, width) => {
+        if (!Number.isFinite(width) || width <= 0) {
+            return { start: 0, end: 1 };
+        }
+        const transformedWidth = width * currentScale;
+        if (!Number.isFinite(transformedWidth) || transformedWidth <= 0) {
+            return { start: 0, end: 1 };
+        }
+        const start = clamp((0 - currentPositionX) / transformedWidth, 0, 1);
+        const end = clamp((width - currentPositionX) / transformedWidth, 0, 1);
+        if (end <= start) {
+            return { start, end: Math.min(1, start + Number.EPSILON) };
+        }
+        return { start, end };
+    }, []);
 
     const clampPositionForScale = useCallback(
         (candidate, nextScale) => {
@@ -168,7 +187,7 @@ export default function WaterfallViewer({
                 return null;
             }
 
-            // Mirror live waterfall behavior: full-bleed render with X-only transform.
+            // Keep cursor math in source-space so crosshair stays stable across zoom/pan.
             const transformedWidth = containerSize.width * scaleRef.current;
             const normalizedX = (localX - positionXRef.current) / transformedWidth;
             const normalizedY = (localY - SCALE_STRIP_HEIGHT) / imageViewportHeight;
@@ -515,18 +534,32 @@ export default function WaterfallViewer({
         if (!Number.isFinite(centerFrequency) || !Number.isFinite(sampleRate)) return null;
         if (!containerSize.width) return null;
 
-        const transformedWidth = containerSize.width * scaleX;
-        if (transformedWidth <= 0) return null;
-
-        const visibleStartNorm = clamp((0 - positionX) / transformedWidth, 0, 1);
-        const visibleEndNorm = clamp((containerSize.width - positionX) / transformedWidth, 0, 1);
+        const { start: visibleStartNorm, end: visibleEndNorm } = getVisibleXNormRange(
+            positionX,
+            scaleX,
+            containerSize.width
+        );
 
         const fullStartFrequency = centerFrequency - sampleRate / 2;
         return {
             start: fullStartFrequency + visibleStartNorm * sampleRate,
             end: fullStartFrequency + visibleEndNorm * sampleRate,
         };
-    }, [centerFrequency, containerSize.width, positionX, sampleRate, scaleX]);
+    }, [centerFrequency, containerSize.width, getVisibleXNormRange, positionX, sampleRate, scaleX]);
+
+    const visibleScaleCenterFrequency = useMemo(() => {
+        if (!visibleFrequencyRange) {
+            return centerFrequency;
+        }
+        return (visibleFrequencyRange.start + visibleFrequencyRange.end) / 2;
+    }, [centerFrequency, visibleFrequencyRange]);
+
+    const visibleScaleSampleRate = useMemo(() => {
+        if (!visibleFrequencyRange) {
+            return sampleRate;
+        }
+        return Math.max(1, visibleFrequencyRange.end - visibleFrequencyRange.start);
+    }, [sampleRate, visibleFrequencyRange]);
 
     const displayedCursorInfo = useMemo(() => {
         if (!cursorInfo || !containerSize.width || !containerSize.height) {
@@ -565,6 +598,83 @@ export default function WaterfallViewer({
 
         return () => observer.disconnect();
     }, []);
+
+    useEffect(() => {
+        if (!src) {
+            setSourceImageSize({ width: 0, height: 0 });
+            return;
+        }
+        setSourceImageSize({ width: 0, height: 0 });
+    }, [src]);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) {
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return;
+        }
+
+        const sourceImage = sourceImageRef.current;
+        const imageWidth = sourceImageSize.width;
+        const imageHeight = sourceImageSize.height;
+        const viewportWidth = containerSize.width;
+        const viewportHeight = Math.max(1, containerSize.height - SCALE_STRIP_HEIGHT);
+
+        if (!sourceImage || !imageWidth || !imageHeight || !viewportWidth || viewportHeight <= 0) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            return;
+        }
+
+        const dpr = window.devicePixelRatio || 1;
+        const targetWidth = Math.max(1, Math.round(viewportWidth * dpr));
+        const targetHeight = Math.max(1, Math.round(viewportHeight * dpr));
+        if (canvas.width !== targetWidth) {
+            canvas.width = targetWidth;
+        }
+        if (canvas.height !== targetHeight) {
+            canvas.height = targetHeight;
+        }
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, viewportWidth, viewportHeight);
+
+        // Draw the source slice directly from the full-resolution image.
+        const { start, end } = getVisibleXNormRange(positionX, scaleX, viewportWidth);
+        const sourceX = start * imageWidth;
+        const sourceWidth = Math.max(1, (end - start) * imageWidth);
+
+        if (sourceWidth > viewportWidth) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+        } else {
+            ctx.imageSmoothingEnabled = false;
+        }
+
+        ctx.drawImage(
+            sourceImage,
+            sourceX,
+            0,
+            sourceWidth,
+            imageHeight,
+            0,
+            0,
+            viewportWidth,
+            viewportHeight
+        );
+    }, [
+        containerSize.height,
+        containerSize.width,
+        getVisibleXNormRange,
+        positionX,
+        scaleX,
+        sourceImageSize.height,
+        sourceImageSize.width,
+    ]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -639,43 +749,57 @@ export default function WaterfallViewer({
                 ...containerSx,
             }}
         >
-            <Box
+            <img
+                ref={sourceImageRef}
+                src={src}
+                alt={alt}
                 draggable={false}
-                sx={{
+                onLoad={(event) => {
+                    const image = event.currentTarget;
+                    setSourceImageSize({
+                        width: image.naturalWidth || image.width || 0,
+                        height: image.naturalHeight || image.height || 0,
+                    });
+                }}
+                onDragStart={handleDragStart}
+                style={{
                     position: 'absolute',
-                    inset: 0,
-                    transformOrigin: 'left center',
-                    transform: `translateX(${positionX}px) scaleX(${scaleX})`,
+                    width: 0,
+                    height: 0,
+                    opacity: 0,
+                    pointerEvents: 'none',
                     userSelect: 'none',
                     WebkitUserSelect: 'none',
                     WebkitUserDrag: 'none',
                 }}
+            />
+            <Box sx={{ height: `${SCALE_STRIP_HEIGHT}px`, width: '100%' }}>
+                <FrequencyScale
+                    centerFrequency={visibleScaleCenterFrequency}
+                    sampleRate={visibleScaleSampleRate}
+                    containerWidth={containerSize.width || 1}
+                    transformTick={transformTick}
+                    interactionActive={isTransformInteracting}
+                    allowInteractionMeasure={false}
+                    canvasHeight={SCALE_STRIP_HEIGHT}
+                />
+            </Box>
+            <Box
+                sx={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: `${SCALE_STRIP_HEIGHT}px`,
+                    bottom: 0,
+                }}
             >
-                <Box sx={{ height: `${SCALE_STRIP_HEIGHT}px`, width: '100%' }}>
-                    <FrequencyScale
-                        centerFrequency={centerFrequency}
-                        sampleRate={sampleRate}
-                        containerWidth={containerSize.width || 1}
-                        transformTick={transformTick}
-                        interactionActive={isTransformInteracting}
-                        allowInteractionMeasure={false}
-                        canvasHeight={SCALE_STRIP_HEIGHT}
-                    />
-                </Box>
-                <img
-                    src={src}
-                    alt={alt}
-                    draggable={false}
-                    onDragStart={handleDragStart}
+                <canvas
+                    ref={canvasRef}
                     style={{
                         width: '100%',
-                        height: `calc(100% - ${SCALE_STRIP_HEIGHT}px)`,
+                        height: '100%',
                         display: 'block',
-                        objectFit: 'fill',
                         imageRendering: 'auto',
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none',
-                        WebkitUserDrag: 'none',
                         pointerEvents: 'none',
                     }}
                 />
