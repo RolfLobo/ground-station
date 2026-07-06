@@ -9,8 +9,9 @@ operators, satellite enthusiasts, and researchers, it brings orbit visualization
 SDR waterfall analysis, packet and telemetry decoding, scheduled observations, and hardware management into a
 single web interface.
 
-## Recent Releases (Last 10 Tags)
+## Recent Releases
 
+* **v0.7.11 (2026-07-06):** Added configurable waterfall generation with a new viewer component and stronger touch/pointer interactions, expanded celestial tracking UX with interaction controls and elevation-trend integrations, and improved recording/file metadata presentation with image dimensions and shared thumbnails.
 * **v0.7.10 (2026-07-05):** Improved celestial module scene/caching behavior (including synthetic Sun origin handling for tracks-only payloads), added loading-state status indicators in the frontend navigation, expanded celestial translations (German/Greek), and refined monitored-grid unit formatting.
 * **v0.7.9 (2026-07-03):** Added context menus for EarthView/celestial targets in monitored grids and passes, introduced inline actions for tracking/transmitter workflows, and improved target-key handling plus transmitter identifier management.
 * **v0.7.8 (2026-06-30):** Isolated waterfall marker drag interactions from container pan handlers, upgraded target badges to `TargetNumberIcon` in fleet and popover views, and improved target popover tracking/navigation behavior to streamline jumps to tracker pages.
