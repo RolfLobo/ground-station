@@ -46,6 +46,14 @@ afterEach(() => {
 });
 
 describe('WaterfallViewer drag handling', () => {
+    it('shows a loading indicator until the snapshot image loads', () => {
+        renderViewer();
+        expect(screen.getByRole('progressbar')).toBeInTheDocument();
+
+        fireEvent.load(screen.getByAltText('Recorded waterfall'));
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
     it('cancels native drag events from the rendered waterfall image', () => {
         renderViewer();
 

@@ -18,7 +18,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, IconButton, Tooltip, Typography } from '@mui/material';
+import { Box, CircularProgress, IconButton, Tooltip, Typography } from '@mui/material';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -69,6 +69,8 @@ export default function WaterfallViewer({
     const [cursorInfo, setCursorInfo] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [sourceImageSize, setSourceImageSize] = useState({ width: 0, height: 0 });
+    const [loadedSrc, setLoadedSrc] = useState(null);
+    const [failedSrc, setFailedSrc] = useState(null);
     const [transformTick, setTransformTick] = useState(0);
 
     const formatFrequencyValue = useCallback(
@@ -723,6 +725,8 @@ export default function WaterfallViewer({
     }, [hintDurationMs, showHint]);
 
     const containerCursor = scaleX > 1 ? (isDragging ? 'grabbing' : 'grab') : 'crosshair';
+    // Show loading while the current src is still fetching/decoding.
+    const showLoadingOverlay = Boolean(src) && loadedSrc !== src && failedSrc !== src;
 
     return (
         <Box
@@ -760,6 +764,12 @@ export default function WaterfallViewer({
                         width: image.naturalWidth || image.width || 0,
                         height: image.naturalHeight || image.height || 0,
                     });
+                    setLoadedSrc(src);
+                    setFailedSrc(null);
+                }}
+                onError={() => {
+                    setSourceImageSize({ width: 0, height: 0 });
+                    setFailedSrc(src);
                 }}
                 onDragStart={handleDragStart}
                 style={{
@@ -990,6 +1000,23 @@ export default function WaterfallViewer({
                     }}
                 >
                     Scroll or pinch to zoom X axis, drag to pan
+                </Box>
+            )}
+
+            {showLoadingOverlay && (
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        zIndex: 3,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: 'rgba(0, 0, 0, 0.28)',
+                        pointerEvents: 'none',
+                    }}
+                >
+                    <CircularProgress size={28} />
                 </Box>
             )}
         </Box>
