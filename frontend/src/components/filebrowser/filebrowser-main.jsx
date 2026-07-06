@@ -182,7 +182,7 @@ function getLanguageFlag(langCode) {
     return flagMap[langCode] || '🌐';
 }
 
-const WATERFALL_FFT_OPTIONS = [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
+const WATERFALL_FFT_OPTIONS = [512, 1024, 2048, 4096, 8192];
 const WATERFALL_WINDOW_OPTIONS = ['hann', 'hamming', 'blackman'];
 const WATERFALL_OVERLAP_OPTIONS = [
     { value: 0, label: '0%' },
@@ -195,7 +195,7 @@ const WATERFALL_OVERLAP_OPTIONS = [
     { value: 0.75, label: '75%' },
 ];
 const DEFAULT_WATERFALL_TASK_OPTIONS = Object.freeze({
-    fft_size: 16384,
+    fft_size: 8192,
     max_height: 6000,
     window: 'hann',
     overlap: 0.5,
@@ -222,7 +222,7 @@ const buildWaterfallTaskOptionsPayload = (options) => {
     const dbMax = clampNumber(options.db_max, -220, 80, 0);
 
     const payload = {
-        fft_size: WATERFALL_FFT_OPTIONS.includes(fftSize) ? fftSize : 16384,
+        fft_size: WATERFALL_FFT_OPTIONS.includes(fftSize) ? fftSize : 8192,
         max_height: maxHeight,
         window: WATERFALL_WINDOW_OPTIONS.includes(options.window) ? options.window : 'hann',
         overlap,

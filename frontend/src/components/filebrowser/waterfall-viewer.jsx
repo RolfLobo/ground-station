@@ -162,6 +162,25 @@ export default function WaterfallViewer({
         return { start, end };
     }, []);
 
+    const nativeMaxZoom = useMemo(() => {
+        if (!Number.isFinite(sourceImageSize.width) || sourceImageSize.width <= 0) {
+            return null;
+        }
+        if (!Number.isFinite(containerSize.width) || containerSize.width <= 0) {
+            return null;
+        }
+        return sourceImageSize.width / containerSize.width;
+    }, [containerSize.width, sourceImageSize.width]);
+
+    const effectiveMaxZoom = useMemo(() => {
+        let limit = maxZoom;
+        if (Number.isFinite(nativeMaxZoom) && nativeMaxZoom > 0) {
+            // Prevent zooming past 1:1 source pixels (no zoom-in upscaling).
+            limit = Math.min(limit, nativeMaxZoom);
+        }
+        return Math.max(minZoom, limit);
+    }, [maxZoom, minZoom, nativeMaxZoom]);
+
     const clampPositionForScale = useCallback(
         (candidate, nextScale) => {
             if (!Number.isFinite(containerSize.width) || containerSize.width <= 0 || nextScale <= 1) {
@@ -233,7 +252,7 @@ export default function WaterfallViewer({
             }
 
             const previousScale = scaleRef.current;
-            const nextScale = clamp(previousScale + deltaScale, minZoom, maxZoom);
+            const nextScale = clamp(previousScale + deltaScale, minZoom, effectiveMaxZoom);
 
             if (nextScale === previousScale) {
                 return;
@@ -252,7 +271,7 @@ export default function WaterfallViewer({
 
             applyTransform(nextScale, nextPositionX, { trackInteraction: true });
         },
-        [applyTransform, clampPositionForScale, containerSize.width, maxZoom, minZoom]
+        [applyTransform, clampPositionForScale, containerSize.width, effectiveMaxZoom, minZoom]
     );
 
     const panOnXAxisOnly = useCallback(
@@ -332,7 +351,7 @@ export default function WaterfallViewer({
         }
 
         const centerX = ((firstPoint.clientX + secondPoint.clientX) / 2) - rect.left;
-        const nextScale = clamp(start.scale * (distance / start.distance), minZoom, maxZoom);
+        const nextScale = clamp(start.scale * (distance / start.distance), minZoom, effectiveMaxZoom);
         let nextPositionX = centerX - start.pointRatio * containerSize.width * nextScale;
         if (nextScale === 1) {
             nextPositionX = 0;
@@ -341,7 +360,14 @@ export default function WaterfallViewer({
         }
 
         applyTransform(nextScale, nextPositionX, { trackInteraction: true });
-    }, [applyTransform, beginPinchZoom, clampPositionForScale, containerSize.width, maxZoom, minZoom]);
+    }, [
+        applyTransform,
+        beginPinchZoom,
+        clampPositionForScale,
+        containerSize.width,
+        effectiveMaxZoom,
+        minZoom,
+    ]);
 
     const resetTransform = useCallback(() => {
         applyTransform(1, 0);
@@ -650,12 +676,8 @@ export default function WaterfallViewer({
         const sourceX = start * imageWidth;
         const sourceWidth = Math.max(1, (end - start) * imageWidth);
 
-        if (sourceWidth > viewportWidth) {
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-        } else {
-            ctx.imageSmoothingEnabled = false;
-        }
+        // Keep X-bin data crisp while zooming/panning: do not interpolate canvas samples.
+        ctx.imageSmoothingEnabled = false;
 
         ctx.drawImage(
             sourceImage,
@@ -703,6 +725,14 @@ export default function WaterfallViewer({
             applyTransform(scaleRef.current, clamped);
         }
     }, [applyTransform, clampPositionForScale, containerSize.width]);
+
+    useEffect(() => {
+        if (scaleRef.current <= effectiveMaxZoom) {
+            return;
+        }
+        const clampedPosition = clampPositionForScale(positionXRef.current, effectiveMaxZoom);
+        applyTransform(effectiveMaxZoom, clampedPosition);
+    }, [applyTransform, clampPositionForScale, effectiveMaxZoom]);
 
     useEffect(() => {
         applyTransform(1, 0);
