@@ -340,7 +340,9 @@ const earthViewSlice = createSlice({
         showTooltip: false,
         showGrid: true,
         gridEditable: false,
-        loadingSatellites: true,
+        // Keep false by default so sidebar status icons do not show stale "loading"
+        // after app refresh on non-Earth-View pages.
+        loadingSatellites: false,
         selectedSatellites: [],
         selectedSatellitePositions: {},
         currentPastSatellitesPaths: [],
