@@ -625,6 +625,26 @@ export default function WaterfallViewer({
         return Math.max(1, visibleFrequencyRange.end - visibleFrequencyRange.start);
     }, [sampleRate, visibleFrequencyRange]);
 
+    const centerFrequencyMarkerX = useMemo(() => {
+        if (
+            !Number.isFinite(centerFrequency) ||
+            !Number.isFinite(sampleRate) ||
+            !Number.isFinite(containerSize.width) ||
+            containerSize.width <= 0
+        ) {
+            return null;
+        }
+
+        const fullStartFrequency = centerFrequency - sampleRate / 2;
+        const normalizedCenterX = (centerFrequency - fullStartFrequency) / sampleRate;
+        const x = positionX + normalizedCenterX * containerSize.width * scaleX;
+
+        if (!Number.isFinite(x) || x < 0 || x > containerSize.width) {
+            return null;
+        }
+        return x;
+    }, [centerFrequency, containerSize.width, positionX, sampleRate, scaleX]);
+
     const displayedCursorInfo = useMemo(() => {
         if (!cursorInfo || !containerSize.width || !containerSize.height) {
             return null;
@@ -931,6 +951,21 @@ export default function WaterfallViewer({
                     }}
                 />
             </Box>
+
+            {centerFrequencyMarkerX !== null && (
+                <Box
+                    data-testid="waterfall-center-frequency-line"
+                    style={{ left: centerFrequencyMarkerX }}
+                    sx={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        width: '1px',
+                        bgcolor: 'rgba(255, 56, 56, 0.38)',
+                        pointerEvents: 'none',
+                    }}
+                />
+            )}
 
             {displayedCursorInfo && (
                 <>

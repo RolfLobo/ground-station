@@ -221,6 +221,15 @@ describe('WaterfallViewer drag handling', () => {
         expect(screen.getByText('145.200000 MHz')).toBeInTheDocument();
     });
 
+    it('renders a faint center-frequency marker line', () => {
+        mockViewerRect();
+        renderViewer();
+
+        const marker = screen.getByTestId('waterfall-center-frequency-line');
+        expect(marker).toBeInTheDocument();
+        expect(marker.style.left).toBe('200px');
+    });
+
     it('places the crosshair on a touch tap', () => {
         mockViewerRect();
         const viewer = renderViewer().getByTestId('waterfall-viewer');
