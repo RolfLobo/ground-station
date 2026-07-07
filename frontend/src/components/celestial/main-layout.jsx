@@ -522,9 +522,7 @@ const CelestialMainLayout = () => {
     const solarLoading = Boolean(celestialState?.solarLoading);
     const tracksLoading = Boolean(celestialState?.tracksLoading);
     const solarSystemLoading = solarLoading || tracksLoading;
-    const isSolarInitialLoad = solarSystemLoading && viewMode === VIEW_MODE_SOLAR_SYSTEM && !hasSolarScene;
     const isSolarRefreshing = solarSystemLoading && viewMode === VIEW_MODE_SOLAR_SYSTEM && hasSolarScene;
-    const isPlanetariumInitialLoad = tracksLoading && viewMode === VIEW_MODE_PLANETARIUM && trackedCount === 0;
     const isPlanetariumRefreshing = tracksLoading && viewMode === VIEW_MODE_PLANETARIUM && trackedCount > 0;
     const selectedInfoTargetKey = React.useMemo(() => {
         const focusedKey = String(focusTargetKey || '').trim();
@@ -768,30 +766,6 @@ const CelestialMainLayout = () => {
                                     displayOptions={solarSystemDisplayOptions}
                                 />
                             )}
-
-                            {isSolarInitialLoad || isPlanetariumInitialLoad ? (
-                                <Box
-                                    sx={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexDirection: 'column',
-                                        gap: 1.25,
-                                        bgcolor: (theme) => theme.palette.mode === 'dark'
-                                            ? 'rgba(8, 10, 14, 0.72)'
-                                            : 'rgba(248, 250, 255, 0.78)',
-                                    }}
-                                >
-                                    <CircularProgress size={34} />
-                                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                                        {viewMode === VIEW_MODE_PLANETARIUM
-                                            ? tCelestial('main_layout.loading_planetarium_vectors')
-                                            : tCelestial('main_layout.loading_solar_vectors')}
-                                    </Typography>
-                                </Box>
-                            ) : null}
 
                             {isSolarRefreshing || isPlanetariumRefreshing ? (
                                 <Box

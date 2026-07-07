@@ -25,6 +25,8 @@ from typing import Any, Dict, Optional, cast
 
 from common import auth as authsvc
 from handlers.entities import control, locations, satellites
+from server import runtimestate
+from server.scheduler import schedule_celestial_sync_warmup_job
 from tlesync.state import sync_state_manager
 
 CALL_STATUS_IDLE = "idle"
@@ -284,6 +286,10 @@ async def _run_finalize_job(
         _setup_finalize_state["finished_at"] = _utc_iso_now()
         await _refresh_setup_required_in_state()
         await _emit_setup_status(sio, sid)
+        if not bool(_setup_finalize_state.get("setup_required")):
+            # Kick a one-off celestial cache warmup after setup completion so the
+            # scheduler can immediately push usable tracks without page-triggered sync.
+            schedule_celestial_sync_warmup_job(runtimestate.background_task_manager, sio)
     except Exception as exc:
         _setup_finalize_state["job_id"] = job_id
         _setup_finalize_state["state"] = SETUP_STATE_FAILED

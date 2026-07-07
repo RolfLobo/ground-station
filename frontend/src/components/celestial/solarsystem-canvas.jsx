@@ -36,17 +36,15 @@ const MAX_ZOOM = 60000;
 const WHEEL_COMMIT_DELAY_MS = 180;
 const FOCUS_ANIMATION_DURATION_MS = 420;
 const DEFAULT_VIEWPORT = { zoom: 18, panX: 0, panY: 0 };
-const OFFSCREEN_TARGET_EDGE_INSET_PX = 12;
-const OFFSCREEN_TARGET_VISIBILITY_PADDING_PX = 6;
+const OFFSCREEN_TARGET_EDGE_INSET_PX = 6;
+const OFFSCREEN_TARGET_VISIBILITY_PADDING_PX = 4;
 const OFFSCREEN_TARGET_ARROW_LENGTH_PX = 14;
 const OFFSCREEN_TARGET_LABEL_GAP_PX = 18;
 const OFFSCREEN_TARGET_STAGGER_PX = 14;
 const OFFSCREEN_TARGET_LABEL_DEPTH_STEP_PX = 9;
 const OFFSCREEN_TARGET_LABEL_SEARCH_STEPS = 7;
-const OFFSCREEN_TARGET_LABEL_SAFE_MARGIN_PX = 4;
-const OFFSCREEN_TARGET_SOUTH_LABEL_BIAS_PX = 8;
+const OFFSCREEN_TARGET_LABEL_SAFE_MARGIN_PX = 2;
 const OFFSCREEN_TARGET_NORTH_LABEL_BIAS_PX = 8;
-const OFFSCREEN_TARGET_SOUTH_ARROW_BIAS_PX = 20;
 const OFFSCREEN_TARGET_NORTH_ARROW_BIAS_PX = 20;
 const LABEL_EDGE_CENTER_OFFSET_PX = 40;
 const MAX_BACKGROUND_RING_RADIUS_PX = 12000;
@@ -1806,10 +1804,9 @@ const SolarSystemCanvas = ({
             const perpX = -uy;
             const perpY = ux;
             const stagger = offsetIndex * OFFSCREEN_TARGET_STAGGER_PX;
-            // Keep bottom/top-pointing indicators clear of persistent overlays.
-            const southArrowBias = uy > 0 ? uy * OFFSCREEN_TARGET_SOUTH_ARROW_BIAS_PX : 0;
+            // Keep top-pointing indicators clear of persistent overlays.
             const northArrowBias = uy < 0 ? (-uy) * OFFSCREEN_TARGET_NORTH_ARROW_BIAS_PX : 0;
-            const verticalArrowBias = northArrowBias - southArrowBias;
+            const verticalArrowBias = northArrowBias;
 
             const tipX = clamp(
                 edgePoint.x,
@@ -1842,10 +1839,9 @@ const SolarSystemCanvas = ({
                 ctx.font = '11px monospace';
                 const textWidth = Math.max(8, ctx.measureText(text).width);
                 const textHeight = 10;
-                // Keep labels away from top/bottom overlays based on arrow direction.
-                const southBias = uy > 0 ? uy * OFFSCREEN_TARGET_SOUTH_LABEL_BIAS_PX : 0;
+                // Keep labels away from top overlays based on arrow direction.
                 const northBias = uy < 0 ? (-uy) * OFFSCREEN_TARGET_NORTH_LABEL_BIAS_PX : 0;
-                const verticalLabelBias = northBias - southBias;
+                const verticalLabelBias = northBias;
                 const labelPlacement = findOffscreenLabelPlacement({
                     baseX,
                     baseY,

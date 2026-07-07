@@ -1,5 +1,6 @@
 """Background task scheduler for the ground station."""
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
@@ -35,6 +36,7 @@ CELESTIAL_TRACKS_BROADCAST_JOB_ID = "emit_cached_celestial_tracks"
 CELESTIAL_TRACKS_BROADCAST_INTERVAL_SECONDS = 5
 CELESTIAL_MAP_SETTINGS_NAME = "celestial-map-settings"
 MAX_CELESTIAL_PROJECTION_HOURS = 4320
+_celestial_sync_warmup_task: Optional[asyncio.Task] = None
 _ORBITAL_SYNC_TASK_PATTERNS = (
     "orbital data sync",
     "orbital_sync",
@@ -346,7 +348,7 @@ async def run_initial_observation_generation():
         logger.exception(e)
 
 
-async def sync_celestial_vector_snapshots_job(background_task_manager):
+async def sync_celestial_vector_snapshots_job(background_task_manager, sio=None):
     """Periodic cache-fill job that prefetches celestial vector snapshots from Horizons."""
     try:
         # During first-time setup we avoid scheduled celestial writes so setup auth/bootstrap
@@ -382,6 +384,8 @@ async def sync_celestial_vector_snapshots_job(background_task_manager):
                 tracker_resync.get("resynced", 0),
                 tracker_resync.get("failed", 0),
             )
+            if sio is not None:
+                await emit_cached_celestial_tracks_job(sio)
             return
         if result.get("skipped"):
             logger.info("Scheduled celestial vector snapshot sync skipped: %s", result.get("error"))
@@ -393,6 +397,69 @@ async def sync_celestial_vector_snapshots_job(background_task_manager):
     except Exception as e:
         logger.error(f"Error during scheduled celestial vector snapshot sync: {e}")
         logger.exception(e)
+
+
+async def run_celestial_sync_warmup_job(
+    background_task_manager,
+    sio,
+    delay_seconds: float = 3.0,
+    max_wait_seconds: float = 15 * 60,
+):
+    """
+    Run one immediate celestial sync pass after startup/setup and emit tracks on completion.
+
+    This keeps the page passive while still pushing data as soon as backend cache-fill work is done.
+    """
+    try:
+        if delay_seconds > 0:
+            await asyncio.sleep(delay_seconds)
+
+        waited_seconds = 0.0
+        poll_interval_seconds = 5.0
+        while background_task_manager:
+            running_tasks = background_task_manager.get_running_tasks()
+            if not any(_is_orbital_sync_task(task) for task in running_tasks):
+                break
+            if waited_seconds >= max_wait_seconds:
+                logger.warning(
+                    "Skipping celestial sync warmup after waiting %.1fs for orbital sync to finish.",
+                    waited_seconds,
+                )
+                return
+            await asyncio.sleep(poll_interval_seconds)
+            waited_seconds += poll_interval_seconds
+
+        await sync_celestial_vector_snapshots_job(background_task_manager, sio=sio)
+    except Exception:
+        logger.exception("Celestial sync warmup job failed")
+
+
+def schedule_celestial_sync_warmup_job(
+    background_task_manager,
+    sio,
+    delay_seconds: float = 3.0,
+    max_wait_seconds: float = 15 * 60,
+) -> asyncio.Task:
+    """
+    Schedule at most one in-flight celestial warmup task.
+
+    Startup/setup can both request warmup around the same time; this guard keeps it single-flight.
+    """
+    global _celestial_sync_warmup_task
+
+    if _celestial_sync_warmup_task is not None and not _celestial_sync_warmup_task.done():
+        logger.info("Celestial sync warmup already scheduled/running; skipping duplicate request.")
+        return _celestial_sync_warmup_task
+
+    _celestial_sync_warmup_task = asyncio.create_task(
+        run_celestial_sync_warmup_job(
+            background_task_manager,
+            sio,
+            delay_seconds=delay_seconds,
+            max_wait_seconds=max_wait_seconds,
+        )
+    )
+    return _celestial_sync_warmup_task
 
 
 def start_scheduler(sio, process_manager, background_task_manager):
@@ -451,7 +518,7 @@ def start_scheduler(sio, process_manager, background_task_manager):
         scheduler.add_job(
             sync_celestial_vector_snapshots_job,
             trigger=IntervalTrigger(minutes=celestial_sync_interval_minutes),
-            args=[background_task_manager],
+            args=[background_task_manager, sio],
             id="sync_celestial_vector_snapshots",
             name="Synchronize celestial vector snapshots",
             replace_existing=True,

@@ -33,7 +33,12 @@ from observations.sync import ObservationSchedulerSync
 from pipeline.orchestration.processmanager import process_manager
 from server import runtimestate, shutdown
 from server.firsttime import first_time_initialization, run_initial_sync
-from server.scheduler import run_initial_observation_generation, start_scheduler, stop_scheduler
+from server.scheduler import (
+    run_initial_observation_generation,
+    schedule_celestial_sync_warmup_job,
+    start_scheduler,
+    stop_scheduler,
+)
 from server.sessionsnapshot import start_session_runtime_emitter
 from server.spapaths import is_static_asset_request, resolve_static_asset_path
 from server.systeminfo import start_system_info_emitter
@@ -167,6 +172,7 @@ async def lifespan(fastapiapp: FastAPI):
 
     # Start the background task scheduler
     scheduler = start_scheduler(sio, process_manager, background_task_manager)
+    schedule_celestial_sync_warmup_job(background_task_manager, sio)
 
     # Initialize observation executor and scheduler sync
     observation_executor = ObservationExecutor(process_manager, sio)
