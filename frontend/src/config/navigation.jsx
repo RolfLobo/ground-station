@@ -260,6 +260,25 @@ const CelestialIconWithStatus = () => {
     );
 };
 
+// Wrapper component for earth view icon that reads Redux state
+const EarthViewIconWithStatus = () => {
+    const loadingSatellites = useSelector((state) => state.earthViewTrack?.loadingSatellites);
+    const passesLoading = useSelector((state) => state.earthViewTrack?.passesLoading);
+    const selectedSatGroupId = useSelector((state) => state.earthViewTrack?.selectedSatGroupId);
+    const normalizedSelectedSatGroupId = String(selectedSatGroupId || '').trim();
+    // Ignore initial/default state before any valid group is selected to avoid persistent false-positive spinner.
+    const hasSelectedSatGroup = Boolean(
+        normalizedSelectedSatGroupId && normalizedSelectedSatGroupId !== 'none'
+    );
+    const showOverlay = Boolean(hasSelectedSatGroup && (loadingSatellites || passesLoading));
+
+    return (
+        <IconWithOverlay showOverlay={showOverlay} overlayType="sync">
+            <PublicIcon />
+        </IconWithOverlay>
+    );
+};
+
 // Wrapper component for FolderIcon that reads Redux state
 const FileBrowserIconWithStatus = () => {
     const hasNewFiles = useSelector((state) => state.filebrowser?.hasNewFiles);
@@ -304,7 +323,7 @@ export const getNavigation = ({ isAdmin = false } = {}) => {
         {
             segment: 'earthview',
             title: i18n.t('earthview', { ns: 'navigation', defaultValue: 'Earth view' }),
-            icon: <PublicIcon/>,
+            icon: <EarthViewIconWithStatus />,
         },
         {
             segment: 'tracking',
