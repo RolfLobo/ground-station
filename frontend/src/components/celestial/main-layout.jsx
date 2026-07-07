@@ -300,6 +300,7 @@ const CelestialMainLayout = () => {
     });
     const solarSystemViewportRef = React.useRef(null);
     const previousRenderableSolarBodiesCountRef = React.useRef(0);
+    const autoFocusedTargetKeyRef = React.useRef('');
 
     const projectionSettings = React.useMemo(() => {
         const mapSettings = celestialState.mapSettings || {};
@@ -493,6 +494,7 @@ const CelestialMainLayout = () => {
         : inferredCounts.moons;
     const trackedCount = combinedScene?.celestial?.length || 0;
     const hasSolarScene = (planetsCount + moonsCount) > 0;
+    const hasPersistedMonitoredSelection = Boolean((monitoredState?.selectedIds || []).length > 0);
     const solarCacheMissingCount = Number(combinedScene?.meta?.solar_system?.cache?.missing_count || 0);
     const renderableSolarBodiesCount = React.useMemo(
         () => solarBodies.filter((body) => hasFiniteXYZ(body?.position_xyz_au)).length,
@@ -510,12 +512,13 @@ const CelestialMainLayout = () => {
         previousRenderableSolarBodiesCountRef.current = renderableSolarBodiesCount;
         if (viewMode !== VIEW_MODE_SOLAR_SYSTEM) return;
         if (previousCount !== 0 || renderableSolarBodiesCount <= 0) return;
+        if (hasPersistedMonitoredSelection) return;
 
         // A persisted viewport can point at an old target-only scene. When the
         // system layer first becomes renderable, fit once so planets/moons are
         // actually visible without requiring a manual toolbar action.
         setFitAllSignal((value) => value + 1);
-    }, [renderableSolarBodiesCount, viewMode]);
+    }, [renderableSolarBodiesCount, viewMode, hasPersistedMonitoredSelection]);
     const solarLoading = Boolean(celestialState?.solarLoading);
     const tracksLoading = Boolean(celestialState?.tracksLoading);
     const solarSystemLoading = solarLoading || tracksLoading;
@@ -540,6 +543,38 @@ const CelestialMainLayout = () => {
         () => (selectedInfoTargetKey ? [selectedInfoTargetKey] : []),
         [selectedInfoTargetKey],
     );
+    React.useEffect(() => {
+        const selectedId = (monitoredState?.selectedIds || [])[0];
+        const targetKey = String(selectedInfoTargetKey || '').trim();
+        if (viewMode !== VIEW_MODE_SOLAR_SYSTEM || selectedId == null || !targetKey) {
+            autoFocusedTargetKeyRef.current = '';
+            return;
+        }
+
+        if (String(focusTargetKey || '').trim() === targetKey) {
+            autoFocusedTargetKeyRef.current = targetKey;
+            return;
+        }
+
+        const trackedRows = Array.isArray(combinedScene?.celestial) ? combinedScene.celestial : [];
+        const selectedTrackAvailable = trackedRows.some(
+            (row) => buildTargetKeyFromCelestialRow(row) === targetKey,
+        );
+        if (!selectedTrackAvailable) return;
+        if (autoFocusedTargetKeyRef.current === targetKey) return;
+
+        // During refresh/bootstrap, wait for the selected tracked row to arrive,
+        // then focus once so persisted selection controls the viewport.
+        autoFocusedTargetKeyRef.current = targetKey;
+        setFocusTargetKey(targetKey);
+        setFocusTargetSignal((value) => value + 1);
+    }, [
+        combinedScene?.celestial,
+        focusTargetKey,
+        monitoredState?.selectedIds,
+        selectedInfoTargetKey,
+        viewMode,
+    ]);
     const targetNumberByTargetKey = React.useMemo(
         () => buildTargetSlotNumberByTargetKey(trackerInstances),
         [trackerInstances],
