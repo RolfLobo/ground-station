@@ -11,6 +11,7 @@ single web interface.
 
 ## Recent Releases
 
+* **v0.7.13 (2026-07-07):** Added filename sanitization utilities and integrated them into recording paths, expanded waterfall FFT size options, raised default/fallback FFT size to 16384 for improved resolution, and refined dialog footer responsiveness/consistency.
 * **v0.7.12 (2026-07-06):** Added canvas-based waterfall rendering with optimized zoom/pan behavior, introduced snapshot-image loading indicators, and refined native max-zoom handling with simplified zoom-limit logic.
 * **v0.7.11 (2026-07-06):** Added configurable waterfall generation with a new viewer component and stronger touch/pointer interactions, expanded celestial tracking UX with interaction controls and elevation-trend integrations, and improved recording/file metadata presentation with image dimensions and shared thumbnails.
 * **v0.7.10 (2026-07-05):** Improved celestial module scene/caching behavior (including synthetic Sun origin handling for tracks-only payloads), added loading-state status indicators in the frontend navigation, expanded celestial translations (German/Greek), and refined monitored-grid unit formatting.
@@ -20,7 +21,6 @@ single web interface.
 * **v0.7.6 (2026-06-28):** Added SDR usage badges with cross-session utilization tracking, persisted orbital sync state with UI hydration support, improved active non-satellite tracker resync during celestial sync, and refined target layout/schema behavior.
 * **v0.7.5 (2026-06-28):** Added versioned EarthView defaults for satellite tables, improved state reconciliation and layout schema scaling, persisted orbital-sync state with UI hydration support, and introduced SDR cross-session utilization visibility.
 * **v0.7.4 (2026-06-27):** Added timeline scrubbing and improved IQ playback controls, refined SDR options/streaming behavior, introduced resettable table defaults with versioned migration logic for EarthView and celestial views, and added transmitter duplication support.
-* **v0.7.3 (2026-06-25):** Improved worker presentation timing for Android WebView, refined Satellites admin UI layout, and enhanced SDR table rendering/port behavior.
 ## Screenshots
 
 <div align="center">
