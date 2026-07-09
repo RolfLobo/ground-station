@@ -20,7 +20,7 @@
 import {Box, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip, Stack, IconButton} from "@mui/material";
 import Button from "@mui/material/Button";
 import * as React from "react";
-import {useState, useEffect} from "react";
+import {useState, useEffect, useMemo, useCallback} from "react";
 import { createPortal } from "react-dom";
 import {
     DataGrid,
@@ -123,6 +123,7 @@ const TransmittersTable = ({ satelliteData, inDialog = false, actionsPortalTarge
     const [isNewTransmitter, setIsNewTransmitter] = useState(false);
     const [selected, setSelected] = useState([]);
     const [rows, setRows] = useState([]);
+    const [dialogColumnWidths, setDialogColumnWidths] = useState({});
     const dispatch = useDispatch();
     const {socket} = useSocket();
     const transmitterOwner = React.useMemo(() => resolveTransmitterOwner(satelliteData), [satelliteData]);
@@ -181,17 +182,16 @@ const TransmittersTable = ({ satelliteData, inDialog = false, actionsPortalTarge
         setEditModalOpen(true);
     };
 
-    const openTransmitterForEdit = (rowId) => {
-        const transmitter = rows.find(row => row.id === rowId);
+    const openTransmitterForEdit = useCallback((transmitter) => {
         if (!transmitter) return;
         setEditingTransmitter(transmitter);
         setIsNewTransmitter(false);
         setEditModalOpen(true);
-    };
+    }, []);
 
     const handleEditClick = () => {
         const singleRowId = selected[0];
-        openTransmitterForEdit(singleRowId);
+        openTransmitterForEdit(rows.find((row) => row.id === singleRowId));
     };
 
     const openTransmitterForDuplicate = (rowId) => {
@@ -272,7 +272,7 @@ const TransmittersTable = ({ satelliteData, inDialog = false, actionsPortalTarge
         setSelected([]);
     }, []);
 
-    const columns = [
+    const columns = useMemo(() => [
         {field: "description", headerName: t('satellite_info.transmitters.columns.description'), flex: 1.2, minWidth: 150},
         {field: "type", headerName: t('satellite_info.transmitters.columns.type'), flex: 0.8, minWidth: 80},
         {field: "status", headerName: t('satellite_info.transmitters.columns.status'), flex: 0.8, minWidth: 80},
@@ -339,21 +339,44 @@ const TransmittersTable = ({ satelliteData, inDialog = false, actionsPortalTarge
                     sx={{ p: 0.25 }}
                     onClick={(event) => {
                         event.stopPropagation();
-                        openTransmitterForEdit(params.row.id);
+                        openTransmitterForEdit(params.row);
                     }}
                 >
                     <EditIcon fontSize="small" />
                 </IconButton>
             )
         },
-    ];
-    const gridColumns = inDialog
-        ? columns.map((column) => ({
+    ], [t, openTransmitterForEdit]);
+
+    // Keep user-resized widths stable while the dialog rerenders from live sat updates.
+    const gridColumns = useMemo(() => {
+        if (!inDialog) {
+            return columns;
+        }
+
+        return columns.map((column) => ({
             ...column,
-            width: column.minWidth || 120,
+            width: dialogColumnWidths[column.field] ?? column.width ?? column.minWidth ?? 120,
             flex: undefined,
-        }))
-        : columns;
+        }));
+    }, [inDialog, columns, dialogColumnWidths]);
+
+    const handleColumnWidthChange = useCallback((params) => {
+        if (!inDialog || !params?.colDef?.field || typeof params.width !== 'number') {
+            return;
+        }
+
+        const field = params.colDef.field;
+        setDialogColumnWidths((current) => {
+            if (current[field] === params.width) {
+                return current;
+            }
+            return {
+                ...current,
+                [field]: params.width,
+            };
+        });
+    }, [inDialog]);
 
     if (!satelliteData || !transmitterOwner) {
         return (
@@ -383,6 +406,7 @@ const TransmittersTable = ({ satelliteData, inDialog = false, actionsPortalTarge
                         initialState={{pagination: {paginationModel}}}
                         pageSizeOptions={[5, 10]}
                         checkboxSelection={true}
+                        onColumnWidthChange={handleColumnWidthChange}
                         onRowSelectionModelChange={(newSelected) => {
                             setSelected(toSelectedIds(newSelected));
                         }}
