@@ -844,6 +844,8 @@ const targetSatTrackSlice = createSlice({
             event_end: true,
             duration: true,
             progress: true,
+            pass_tags: true,
+            pass_direction: true,
             distance_at_start: false,
             distance_at_end: false,
             distance_at_peak: false,

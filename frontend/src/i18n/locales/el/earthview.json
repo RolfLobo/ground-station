@@ -39,6 +39,24 @@
     "name": "Ονομα",
     "peak_elevation": "Μέγιστη ύψωση",
     "current_elevation": "Τρέχουσα Υψωση",
+    "direction": "Κατεύθυνση",
+    "direction_values": {
+      "cw": "Δεξιόστροφα",
+      "ccw": "Αριστερόστροφα",
+      "mixed": "Μικτή"
+    },
+    "pass_types": "Τύποι διέλευσης",
+    "pass_tag_labels": {
+      "north_crossing": "Διέλευση από βορρά",
+      "south_crossing": "Διέλευση από νότο",
+      "direction_cw": "Δεξιόστροφα",
+      "direction_ccw": "Αριστερόστροφα",
+      "direction_mixed": "Μικτή",
+      "elevation_low": "Χαμηλή ύψωση",
+      "elevation_medium": "Μέτρια ύψωση",
+      "elevation_high": "Υψηλή ύψωση",
+      "elevation_overhead": "Πέρασμα zenith"
+    },
     "progress": "Πρόοδος",
     "duration": "Διάρκεια",
     "bands": "Ζώνες",

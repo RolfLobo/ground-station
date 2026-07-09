@@ -61,6 +61,7 @@ import SelectionActionBar from './selection-action-bar.jsx';
 import { useLocation, useNavigate } from 'react-router-dom';
 import RotatorEditDialog from './rotator-edit-dialog.jsx';
 import {
+    applyAzimuthModeDefaults,
     DEFAULT_ROTATOR,
     prepareRotatorPayload,
     validateRotatorForm,
@@ -152,7 +153,9 @@ export default function AntennaRotatorTable() {
             flex: 1,
             minWidth: 140,
             valueFormatter: (value) =>
-                value === '-180_180'
+                value === '0_450'
+                    ? t('rotator.azimuth_mode_0_450')
+                    : value === '-180_180'
                     ? t('rotator.azimuth_mode_neg180_180')
                     : t('rotator.azimuth_mode_0_360')
         },
@@ -238,6 +241,10 @@ export default function AntennaRotatorTable() {
 
     const handleChange = (e) => {
         const {name, value} = e.target;
+        if (name === 'azimuth_mode') {
+            dispatch(setFormValues(applyAzimuthModeDefaults(formValues, value)));
+            return;
+        }
         dispatch(setFormValues({...formValues, [name]: value}));
     };
 

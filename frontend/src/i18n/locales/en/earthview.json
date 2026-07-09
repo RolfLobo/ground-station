@@ -51,6 +51,24 @@
     "name_other": "Other Name",
     "peak_elevation": "Peak elevation",
     "current_elevation": "Current Elevation",
+    "direction": "Direction",
+    "direction_values": {
+      "cw": "CW",
+      "ccw": "CCW",
+      "mixed": "Mixed"
+    },
+    "pass_types": "Pass Types",
+    "pass_tag_labels": {
+      "north_crossing": "North crossing",
+      "south_crossing": "South crossing",
+      "direction_cw": "CW",
+      "direction_ccw": "CCW",
+      "direction_mixed": "Mixed",
+      "elevation_low": "Low elevation",
+      "elevation_medium": "Medium elevation",
+      "elevation_high": "High elevation",
+      "elevation_overhead": "Overhead"
+    },
     "progress": "Progress",
     "duration": "Duration",
     "bands": "Bands",

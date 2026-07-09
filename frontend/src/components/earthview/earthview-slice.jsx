@@ -117,6 +117,8 @@ export const EARTHVIEW_PASSES_DEFAULT_COLUMN_VISIBILITY = {
     elevation: true,
     progress: true,
     duration: true,
+    pass_tags: true,
+    pass_direction: true,
     transmitter_links: true,
     event_start: true,
     event_end: true,

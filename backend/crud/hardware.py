@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.common import logger, serialize_object
 from db.models import Cameras, Rigs, Rotators, SDRs
 
-VALID_AZIMUTH_MODES = {"0_360", "-180_180"}
+VALID_AZIMUTH_MODES = {"0_360", "-180_180", "0_450"}
 SUPPORTED_CAMERA_TYPES = {"hls", "mjpeg"}
 MAX_ANTENNA_LABEL_LENGTH = 64
 
@@ -118,7 +118,9 @@ async def add_rotator(session: AsyncSession, data: dict) -> dict:
     """
     try:
         azimuth_mode = data.get("azimuth_mode", "0_360")
-        assert azimuth_mode in VALID_AZIMUTH_MODES, "azimuth_mode must be 0_360 or -180_180"
+        assert (
+            azimuth_mode in VALID_AZIMUTH_MODES
+        ), "azimuth_mode must be one of: 0_360, -180_180, 0_450"
         parkaz = _normalize_optional_float(data.get("parkaz"))
         parkel = _normalize_optional_float(data.get("parkel"))
         assert (parkaz is None) == (
@@ -174,7 +176,9 @@ async def edit_rotator(session: AsyncSession, data: dict) -> dict:
 
         if "azimuth_mode" in data:
             azimuth_mode = data["azimuth_mode"]
-            assert azimuth_mode in VALID_AZIMUTH_MODES, "azimuth_mode must be 0_360 or -180_180"
+            assert (
+                azimuth_mode in VALID_AZIMUTH_MODES
+            ), "azimuth_mode must be one of: 0_360, -180_180, 0_450"
 
         if "parkaz" in data:
             data["parkaz"] = _normalize_optional_float(data.get("parkaz"))

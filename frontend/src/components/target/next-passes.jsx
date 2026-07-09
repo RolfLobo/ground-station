@@ -277,6 +277,54 @@ const PassStatusCell = React.memo(function PassStatusCell({status}) {
     );
 });
 
+const getPassTagLabel = (tag, t) => {
+    const labels = {
+        north_crossing: t('next_passes.pass_tag_labels.north_crossing', { defaultValue: 'North crossing' }),
+        south_crossing: t('next_passes.pass_tag_labels.south_crossing', { defaultValue: 'South crossing' }),
+        direction_cw: t('next_passes.pass_tag_labels.direction_cw', { defaultValue: 'CW' }),
+        direction_ccw: t('next_passes.pass_tag_labels.direction_ccw', { defaultValue: 'CCW' }),
+        direction_mixed: t('next_passes.pass_tag_labels.direction_mixed', { defaultValue: 'Mixed' }),
+        elevation_low: t('next_passes.pass_tag_labels.elevation_low', { defaultValue: 'Low elevation' }),
+        elevation_medium: t('next_passes.pass_tag_labels.elevation_medium', { defaultValue: 'Medium elevation' }),
+        elevation_high: t('next_passes.pass_tag_labels.elevation_high', { defaultValue: 'High elevation' }),
+        elevation_overhead: t('next_passes.pass_tag_labels.elevation_overhead', { defaultValue: 'Overhead' }),
+    };
+    return labels[tag] || tag;
+};
+
+const getPassDirectionLabel = (value, t) => {
+    const labels = {
+        CW: t('next_passes.direction_values.cw', { defaultValue: 'CW' }),
+        CCW: t('next_passes.direction_values.ccw', { defaultValue: 'CCW' }),
+        MIXED: t('next_passes.direction_values.mixed', { defaultValue: 'Mixed' }),
+    };
+    return labels[String(value || '').toUpperCase()] || '-';
+};
+
+const PassTypesCell = React.memo(function PassTypesCell({tags, t}) {
+    const tagList = Array.isArray(tags) ? tags.filter(Boolean) : [];
+    if (tagList.length === 0) {
+        return (
+            <Typography variant="caption" color="text.secondary">
+                -
+            </Typography>
+        );
+    }
+    return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', py: 0.4 }}>
+            {tagList.map((tag) => (
+                <Chip
+                    key={tag}
+                    label={getPassTagLabel(tag, t)}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.68rem', height: 22 }}
+                />
+            ))}
+        </Box>
+    );
+});
+
 
 const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
     satellitePasses,
@@ -326,6 +374,23 @@ const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
             headerName: t('next_passes.start'),
             flex: 1,
             renderCell: (params) => <TimeFormatter value={params.value} nowMs={nowMs} />
+        },
+        {
+            field: 'pass_tags',
+            minWidth: 220,
+            headerName: t('next_passes.pass_types', { defaultValue: 'Pass Types' }),
+            flex: 2,
+            sortable: false,
+            renderCell: (params) => <PassTypesCell tags={params.value} t={t} />,
+        },
+        {
+            field: 'pass_direction',
+            minWidth: 110,
+            headerName: t('next_passes.direction', { defaultValue: 'Direction' }),
+            align: 'center',
+            headerAlign: 'center',
+            flex: 1,
+            valueFormatter: (value) => getPassDirectionLabel(value, t),
         },
         {
             field: 'event_end',
@@ -442,6 +507,8 @@ const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
         if (!isCompactView) return base;
         return {
             ...base,
+            pass_tags: false,
+            pass_direction: false,
             event_end: false,
             distance_at_start: false,
             distance_at_end: false,

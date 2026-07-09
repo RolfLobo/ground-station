@@ -469,6 +469,54 @@ const PassStatusCell = React.memo(function PassStatusCell({status, isTracked = f
     );
 });
 
+const getPassTagLabel = (tag, t) => {
+    const labels = {
+        north_crossing: t('passes_table.pass_tag_labels.north_crossing', { defaultValue: 'North crossing' }),
+        south_crossing: t('passes_table.pass_tag_labels.south_crossing', { defaultValue: 'South crossing' }),
+        direction_cw: t('passes_table.pass_tag_labels.direction_cw', { defaultValue: 'CW' }),
+        direction_ccw: t('passes_table.pass_tag_labels.direction_ccw', { defaultValue: 'CCW' }),
+        direction_mixed: t('passes_table.pass_tag_labels.direction_mixed', { defaultValue: 'Mixed' }),
+        elevation_low: t('passes_table.pass_tag_labels.elevation_low', { defaultValue: 'Low elevation' }),
+        elevation_medium: t('passes_table.pass_tag_labels.elevation_medium', { defaultValue: 'Medium elevation' }),
+        elevation_high: t('passes_table.pass_tag_labels.elevation_high', { defaultValue: 'High elevation' }),
+        elevation_overhead: t('passes_table.pass_tag_labels.elevation_overhead', { defaultValue: 'Overhead' }),
+    };
+    return labels[tag] || tag;
+};
+
+const getPassDirectionLabel = (value, t) => {
+    const labels = {
+        CW: t('passes_table.direction_values.cw', { defaultValue: 'CW' }),
+        CCW: t('passes_table.direction_values.ccw', { defaultValue: 'CCW' }),
+        MIXED: t('passes_table.direction_values.mixed', { defaultValue: 'Mixed' }),
+    };
+    return labels[String(value || '').toUpperCase()] || '-';
+};
+
+const PassTypesCell = React.memo(function PassTypesCell({tags, t}) {
+    const tagList = Array.isArray(tags) ? tags.filter(Boolean) : [];
+    if (tagList.length === 0) {
+        return (
+            <Typography variant="caption" color="text.secondary">
+                -
+            </Typography>
+        );
+    }
+    return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', py: 0.4 }}>
+            {tagList.map((tag) => (
+                <Chip
+                    key={tag}
+                    label={getPassTagLabel(tag, t)}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.68rem', height: 22 }}
+                />
+            ))}
+        </Box>
+    );
+});
+
 const PassTransmitterLinksCell = React.memo(function PassTransmitterLinksCell({transmitters, noDataText}) {
     if (!Array.isArray(transmitters) || transmitters.length === 0) {
         return noDataText;
@@ -822,6 +870,23 @@ const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
             )
         },
         {
+            field: 'pass_tags',
+            minWidth: 220,
+            headerName: t('passes_table.pass_types', { defaultValue: 'Pass Types' }),
+            flex: 2,
+            sortable: false,
+            renderCell: (params) => <PassTypesCell tags={params.value} t={t} />,
+        },
+        {
+            field: 'pass_direction',
+            minWidth: 110,
+            headerName: t('passes_table.direction', { defaultValue: 'Direction' }),
+            align: 'center',
+            headerAlign: 'center',
+            flex: 1,
+            valueFormatter: (value) => getPassDirectionLabel(value, t),
+        },
+        {
             field: 'transmitter_links',
             minWidth: 170,
             align: 'center',
@@ -926,6 +991,8 @@ const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
             alternative_name: false,
             name_other: false,
             elevation: false,
+            pass_tags: false,
+            pass_direction: false,
             duration: false,
             transmitters: false,
             transmitter_links: false,

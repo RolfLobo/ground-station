@@ -736,7 +736,7 @@ const TargetInfoIsland = () => {
                                 <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
                                     Elevation
                                 </Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', fontFamily: 'monospace', lineHeight: 1 }}>
+                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', fontFamily: 'monospace', lineHeight: 1, fontSize: '1.5rem' }}>
                                     {Number.isFinite(satelliteElevation)
                                         ? `${satelliteElevation.toFixed(2)}°`
                                         : '--'}
@@ -755,7 +755,7 @@ const TargetInfoIsland = () => {
                                 <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
                                     Azimuth
                                 </Typography>
-                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main', fontFamily: 'monospace', lineHeight: 1 }}>
+                                <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main', fontFamily: 'monospace', lineHeight: 1, fontSize: '1.5rem' }}>
                                     {Number.isFinite(satelliteAzimuth) ? `${satelliteAzimuth.toFixed(2)}°` : '--'}
                                 </Typography>
                             </Box>
@@ -1366,7 +1366,7 @@ const TargetInfoIsland = () => {
                                         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
                                             Elevation
                                         </Typography>
-                                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', fontFamily: 'monospace', lineHeight: 1 }}>
+                                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', fontFamily: 'monospace', lineHeight: 1, fontSize: '1.5rem' }}>
                                             {formatAngle(nonSatelliteElevation)}
                                         </Typography>
                                     </Box>
@@ -1383,7 +1383,7 @@ const TargetInfoIsland = () => {
                                         <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
                                             Azimuth
                                         </Typography>
-                                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main', fontFamily: 'monospace', lineHeight: 1 }}>
+                                        <Typography variant="h4" sx={{ fontWeight: 700, color: 'secondary.main', fontFamily: 'monospace', lineHeight: 1, fontSize: '1.5rem' }}>
                                             {formatAngle(nonSatelliteAzimuth)}
                                         </Typography>
                                     </Box>
