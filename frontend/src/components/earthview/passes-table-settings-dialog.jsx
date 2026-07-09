@@ -111,7 +111,6 @@ const PassesTableSettingsDialog = ({ open, onClose }) => {
         { name: 'peak_altitude', label: t('passes_table.peak_elevation'), category: 'basic' },
         { name: 'elevation', label: t('passes_table.current_elevation'), category: 'basic' },
         { name: 'pass_tags', label: t('passes_table.pass_types', { defaultValue: 'Pass Types' }), category: 'basic' },
-        { name: 'pass_direction', label: t('passes_table.direction', { defaultValue: 'Direction' }), category: 'basic' },
         { name: 'progress', label: t('passes_table.progress'), category: 'basic', alwaysVisible: true },
         { name: 'duration', label: t('passes_table.duration'), category: 'basic' },
         { name: 'transmitter_links', label: t('passes_table.transmitter_links', { defaultValue: 'Links' }), category: 'basic' },

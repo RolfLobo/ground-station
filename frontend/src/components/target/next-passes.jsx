@@ -189,6 +189,9 @@ const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
         color: theme.palette.success.main,
         fontWeight: 'bold',
         textDecoration: 'underline',
+    },
+    '& .passes-cell-tags': {
+        alignItems: 'center',
     }
 }));
 
@@ -292,15 +295,6 @@ const getPassTagLabel = (tag, t) => {
     return labels[tag] || tag;
 };
 
-const getPassDirectionLabel = (value, t) => {
-    const labels = {
-        CW: t('next_passes.direction_values.cw', { defaultValue: 'CW' }),
-        CCW: t('next_passes.direction_values.ccw', { defaultValue: 'CCW' }),
-        MIXED: t('next_passes.direction_values.mixed', { defaultValue: 'Mixed' }),
-    };
-    return labels[String(value || '').toUpperCase()] || '-';
-};
-
 const PassTypesCell = React.memo(function PassTypesCell({tags, t}) {
     const tagList = Array.isArray(tags) ? tags.filter(Boolean) : [];
     if (tagList.length === 0) {
@@ -311,7 +305,18 @@ const PassTypesCell = React.memo(function PassTypesCell({tags, t}) {
         );
     }
     return (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', py: 0.4 }}>
+        <Box
+            sx={{
+                display: 'flex',
+                alignItems: 'center',
+                alignContent: 'center',
+                gap: 0.5,
+                flexWrap: 'wrap',
+                width: '100%',
+                minHeight: '100%',
+                py: 0,
+            }}
+        >
             {tagList.map((tag) => (
                 <Chip
                     key={tag}
@@ -381,16 +386,8 @@ const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
             headerName: t('next_passes.pass_types', { defaultValue: 'Pass Types' }),
             flex: 2,
             sortable: false,
+            cellClassName: 'passes-cell-tags',
             renderCell: (params) => <PassTypesCell tags={params.value} t={t} />,
-        },
-        {
-            field: 'pass_direction',
-            minWidth: 110,
-            headerName: t('next_passes.direction', { defaultValue: 'Direction' }),
-            align: 'center',
-            headerAlign: 'center',
-            flex: 1,
-            valueFormatter: (value) => getPassDirectionLabel(value, t),
         },
         {
             field: 'event_end',
@@ -508,7 +505,6 @@ const MemoizedStyledDataGrid = React.memo(function MemoizedStyledDataGrid({
         return {
             ...base,
             pass_tags: false,
-            pass_direction: false,
             event_end: false,
             distance_at_start: false,
             distance_at_end: false,
