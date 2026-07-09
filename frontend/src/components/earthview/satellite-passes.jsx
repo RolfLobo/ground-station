@@ -479,9 +479,9 @@ const getPassTagLabel = (tag, t) => {
         direction_cw: t('passes_table.pass_tag_labels.direction_cw', { defaultValue: 'CW' }),
         direction_ccw: t('passes_table.pass_tag_labels.direction_ccw', { defaultValue: 'CCW' }),
         direction_mixed: t('passes_table.pass_tag_labels.direction_mixed', { defaultValue: 'Mixed' }),
-        elevation_low: t('passes_table.pass_tag_labels.elevation_low', { defaultValue: 'Low elevation' }),
-        elevation_medium: t('passes_table.pass_tag_labels.elevation_medium', { defaultValue: 'Medium elevation' }),
-        elevation_high: t('passes_table.pass_tag_labels.elevation_high', { defaultValue: 'High elevation' }),
+        elevation_low: t('passes_table.pass_tag_labels.elevation_low', { defaultValue: 'Low el' }),
+        elevation_medium: t('passes_table.pass_tag_labels.elevation_medium', { defaultValue: 'Medium el' }),
+        elevation_high: t('passes_table.pass_tag_labels.elevation_high', { defaultValue: 'High el' }),
         elevation_overhead: t('passes_table.pass_tag_labels.elevation_overhead', { defaultValue: 'Overhead' }),
     };
     return labels[tag] || tag;

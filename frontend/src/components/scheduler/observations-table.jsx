@@ -113,6 +113,35 @@ const TimeFormatter = React.memo(function TimeFormatter({ value }) {
     return `${getTimeFromISO(value, timezone, locale)} (${humanizeFutureDateInMinutes(value)})`;
 });
 
+// Pass-window formatter matching passes-table style (relative first, absolute second).
+const PassWindowTimeFormatter = React.memo(function PassWindowTimeFormatter({ value }) {
+    const [tick, setTick] = useState(0);
+    const { timezone, locale } = useUserTimeSettings();
+    const relativeTime = useMemo(() => humanizeFutureDateInMinutes(value), [value, tick]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setTick((prev) => prev + 1);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    if (!value || value === '-') {
+        return '-';
+    }
+
+    return (
+        <Box sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Typography component="span" variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                {relativeTime}
+            </Typography>
+            <Typography component="span" variant="caption" sx={{ color: 'text.secondary', ml: 0.5 }}>
+                · {getTimeFromISO(value, timezone, locale)}
+            </Typography>
+        </Box>
+    );
+});
+
 const ObservationsTable = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation('common');
@@ -322,7 +351,7 @@ const ObservationsTable = () => {
             valueGetter: (value, row) => row.pass?.event_start || '-',
             renderCell: (params) => {
                 if (!params.row.pass) return t('scheduler_tables.observations.geostationary');
-                return <TimeFormatter value={params.value} />;
+                return <PassWindowTimeFormatter value={params.value} />;
             },
         },
         {
@@ -355,7 +384,7 @@ const ObservationsTable = () => {
             valueGetter: (value, row) => row.pass?.event_end || '-',
             renderCell: (params) => {
                 if (!params.row.pass) return t('scheduler_tables.observations.always_visible');
-                return <TimeFormatter value={params.value} />;
+                return <PassWindowTimeFormatter value={params.value} />;
             },
         },
         {
