@@ -339,6 +339,7 @@ class TestClassifyPassGeometry:
         assert result["crosses_south"] is False
         assert result["pass_direction"] == "CCW"
         assert "direction_ccw" in result["pass_tags"]
+        assert "direction_w_to_e" in result["pass_tags"]
         assert result["elevation_class"] == "medium"
 
     def test_detects_south_crossing(self):
@@ -355,6 +356,7 @@ class TestClassifyPassGeometry:
         assert result["crosses_north"] is False
         assert result["pass_direction"] == "CCW"
         assert "direction_ccw" in result["pass_tags"]
+        assert "direction_e_to_w" in result["pass_tags"]
         assert result["elevation_class"] == "low"
 
     def test_detects_overhead_elevation_tag(self):
@@ -368,6 +370,7 @@ class TestClassifyPassGeometry:
 
         assert result["pass_direction"] == "CW"
         assert "direction_cw" in result["pass_tags"]
+        assert "direction_w_to_e" in result["pass_tags"]
         assert result["elevation_class"] == "overhead"
         assert "elevation_overhead" in result["pass_tags"]
 
@@ -384,6 +387,18 @@ class TestClassifyPassGeometry:
         assert result["pass_direction"] in {"CW", "CCW", "MIXED"}
         assert any(tag.startswith("direction_") for tag in result["pass_tags"])
         assert all(not tag.startswith("az_") for tag in result["pass_tags"])
+
+    def test_does_not_emit_east_west_tag_when_side_is_same(self):
+        result = classify_pass_geometry(
+            start_azimuth=35.0,
+            peak_azimuth=80.0,
+            end_azimuth=120.0,
+            peak_altitude=44.0,
+            azimuth_samples=[35.0, 55.0, 80.0, 100.0, 120.0],
+        )
+
+        assert "direction_e_to_w" not in result["pass_tags"]
+        assert "direction_w_to_e" not in result["pass_tags"]
 
 
 class TestCalculateNextEventsIntegration:

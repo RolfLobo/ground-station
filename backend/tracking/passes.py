@@ -82,6 +82,56 @@ def _path_crosses_reference(unwrapped_azimuths: List[float], reference_angle: fl
     return False
 
 
+def _azimuth_lateral_side(azimuth: float) -> Union[str, None]:
+    """
+    Classify azimuth into east/west side of the local sky.
+
+    Returns:
+      - "E" for 0° < az < 180°
+      - "W" for 180° < az < 360°
+      - None for boundary bearings (near north/south), where east/west is ambiguous.
+    """
+    normalized = _normalize_azimuth(azimuth)
+    epsilon = 1e-6
+    if normalized <= epsilon or abs(normalized - 180.0) <= epsilon:
+        return None
+    if normalized < 180.0:
+        return "E"
+    return "W"
+
+
+def _classify_east_west_flow(normalized_samples: List[float]) -> Union[str, None]:
+    """
+    Determine whether a pass moves from east to west or west to east.
+
+    We intentionally skip exact north/south boundary bearings, then compare the
+    first and last unambiguous side seen in the pass samples.
+    """
+    if len(normalized_samples) < 2:
+        return None
+
+    start_side = None
+    end_side = None
+
+    for sample in normalized_samples:
+        side = _azimuth_lateral_side(sample)
+        if side is not None:
+            start_side = side
+            break
+
+    for sample in reversed(normalized_samples):
+        side = _azimuth_lateral_side(sample)
+        if side is not None:
+            end_side = side
+            break
+
+    if start_side == "E" and end_side == "W":
+        return "E_TO_W"
+    if start_side == "W" and end_side == "E":
+        return "W_TO_E"
+    return None
+
+
 def classify_pass_geometry(
     start_azimuth: float,
     peak_azimuth: float,
@@ -140,6 +190,7 @@ def classify_pass_geometry(
 
     crosses_north = _path_crosses_reference(unwrapped, reference_angle=0.0)
     crosses_south = _path_crosses_reference(unwrapped, reference_angle=180.0)
+    east_west_flow = _classify_east_west_flow(normalized_samples)
 
     pass_tags: List[str] = []
     if crosses_north:
@@ -147,6 +198,10 @@ def classify_pass_geometry(
     if crosses_south:
         pass_tags.append("south_crossing")
     pass_tags.append(f"direction_{pass_direction.lower()}")
+    if east_west_flow == "E_TO_W":
+        pass_tags.append("direction_e_to_w")
+    elif east_west_flow == "W_TO_E":
+        pass_tags.append("direction_w_to_e")
     pass_tags.append(f"elevation_{elevation_class}")
 
     return {

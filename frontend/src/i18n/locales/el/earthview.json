@@ -52,6 +52,8 @@
       "direction_cw": "Δεξιόστροφα",
       "direction_ccw": "Αριστερόστροφα",
       "direction_mixed": "Μικτή",
+      "direction_e_to_w": "E>W",
+      "direction_w_to_e": "W>E",
       "elevation_low": "Χαμηλή ύψωση",
       "elevation_medium": "Μέτρια ύψωση",
       "elevation_high": "Υψηλή ύψωση",

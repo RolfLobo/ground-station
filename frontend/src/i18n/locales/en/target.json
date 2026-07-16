@@ -32,6 +32,8 @@
       "direction_cw": "CW",
       "direction_ccw": "CCW",
       "direction_mixed": "Mixed",
+      "direction_e_to_w": "E>W",
+      "direction_w_to_e": "W>E",
       "elevation_low": "Low EL",
       "elevation_medium": "Medium EL",
       "elevation_high": "High EL",
