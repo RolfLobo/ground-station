@@ -27,7 +27,7 @@
     "max_el": "Max El",
     "pass_types": "Pass Types",
     "pass_tag_labels": {
-      "north_crossing": "North crossing",
+      "north_crossing": "N-cross",
       "south_crossing": "South crossing",
       "direction_cw": "CW",
       "direction_ccw": "CCW",
